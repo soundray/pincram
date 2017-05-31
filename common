@@ -15,3 +15,4 @@ normalpath () {
 }
 
 irtk=/vol/vipdata/users/rahec/irtk/linux/bin
+niftyseg=/vol/vipdata/users/rahec/niftyseg/bin

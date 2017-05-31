@@ -16,4 +16,4 @@ touch $brainlabel || fatal "Could not write to $brainlabel"
 plabel=$(normalpath $1) ; shift
 touch $plabel || fatal "Could not write to $plabel"
 
-$cdir/pincram.sh $target -tpn $cdir/neutral.dof.gz -result $brainlabel -probresult $plabel -tempbase /tmp -output discard -atlas $atlas -par 30 -levels 4 
+$cdir/pincram.sh $target -tpn $cdir/neutral.dof.gz -result $brainlabel -probresult $plabel -tempbase /tmp -output discard -atlas $atlas -par 30 -levels 3 

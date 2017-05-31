@@ -1,8 +1,8 @@
 #!/bin/bash
 
-cdir=$(dirname $0)
+cdir=$(dirname "$0")
 . $cdir/common
-cdir=$(normalpath $cdir)
+cdir=$(normalpath "$cdir")
 
 pn=$(basename $0)
 
@@ -25,49 +25,62 @@ echo "-result     : Name of file to receive output, a binary brain label image."
 echo 
 echo "-probresult : (Optional) name of file to receive output, a probabilistic label image."
 echo 
-echo "-tempbase   : Directory for intermediate output.  Ideally a local directory (but this does not work on HPC)."
-echo "              To store these for later access, see -output option."
+echo "-tempbase   : Temporary working directory.  Ideally a local directory (but this does not work on HPC)."
+echo "              To store intermediate output for later access, see -output option."
 echo 
 echo "-output     : Directory to receive intermediate output.  If a non-existent location is given,"
-echo "              intermediate files will be discarded. "
+echo "              intermediate files will be discarded.  If not specified, the intermediate files will"
+echo "              be copied to the directory of the result file."
 echo 
 echo "-atlas      : Atlas directory."
 echo "            : Has to contain limages/full/m{1..n}.nii.gz, lmasks/full/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz "
 echo 
-echo "-levels     : Integer between 2 and 5. Indicates level of refinement required."
+echo "-tpn        : Rigid transformation for positional normalization of the target image (optional)"
 echo 
-echo "-ref        : Reference label against which to log overlap results."
+echo "-atlasn     : Maximum number of atlases to use.  By default, all available are used."
 echo 
-echo "-par        : Number of jobs to run in parallel.  Please use with consideration."
+echo "-levels     : Integer, minimum 1, maximum 3. Indicates level of refinement required."
+echo 
+echo "-ref        : Reference label against which to log Jaccard overlap results."
+echo 
+echo "-par        : Number of jobs to run in parallel (shell level).  Please use with consideration."
 echo 
 fatal "Parameter error"
 }
 
 [ $# -lt 3 ] && usage
 
-tgt=$(normalpath $1) ; shift
+tgt=$(normalpath "$1") ; shift
 test -e $tgt || fatal "No image found -- $t"
 
+tpn="$cdir"/neutral.dof.gz
+result=
+probresult=
 par=1
 ref=none
 exclude=0
-levels=4
-atlasdir=$(normalpath $cdir/..)
-outdir=$(normalpath $PWD)
-tdbase=$cdir/temp
+atlasdir=$(normalpath "$cdir"/atlas)
+atlasn=0
+tdbase="$cdir"/temp
+lpba40=
+outdir=notspecified
 while [ $# -gt 0 ]
 do
     case "$1" in
-	-tpn)               tpn=$(normalpath $2); shift;;
-	-result)         result=$(normalpath $2); shift;;
-	-probresult) probresult=$(normalpath $2); shift;;
-	-atlas)        atlasdir=$(normalpath $2); shift;;
-	-output)         outdir=$(normalpath $2); shift;;
-	-tempbase)       tdbase=$(normalpath $2); shift;;
-	-ref)               ref=$(normalpath $2); shift;;
-	-levels)         levels=$2; shift;;
-	-excludeatlas)  exclude=$2; shift;;
-	-par)               par=$2; shift;;
+	-tpn)               tpn=$(normalpath "$2"); shift;;
+	-result)         result=$(normalpath "$2"); shift;;
+	-probresult) probresult=$(normalpath "$2"); shift;;
+	-atlas)        atlasdir=$(normalpath "$2"); shift;;
+	-output)         outdir=$(normalpath "$2"); shift;;
+	-tempbase)       tdbase=$(normalpath "$2"); shift;;
+	-ref)               ref=$(normalpath "$2"); shift;;
+	-atlasn)         atlasn="$2"; shift;;
+	-levels)         levels="$2"; shift;;
+	-excludeatlas)  exclude="$2"; shift;;
+	-par)               par="$2"; shift;;
+	-queue)           queue="$2"; shift;;
+	-clusterthr) clusterthr="$2"; shift;;
+	-lpba40)         lpba40="true";;
 	--) shift; break;;
         -*)
             usage;;
@@ -76,12 +89,32 @@ do
     shift
 done
 
-[ -z $result ] && fatal "Result filename not set"
+[ -e "$tpn" ] || fatal "Target positional normalization does not exist"
 
+[ -n "$result" ] || fatal "Result filename not set"
+
+[ -e "$atlasdir" ] || "Atlas directory does not exist"
+
+[ "$outdir" = notspecified ] && outdir=$(basedir "$result")
+
+atlasmax=$(ls "$atlasdir"/lmasks/full/m*nii.gz | wc -l)
+[[ "$atlasn" =~ ^[0-9]+$ ]] || atlasn=$atlasmax
+[[ "$atlasn" -gt $atlasmax || "$atlasn" -eq 0 ]] && atlasn=$atlasmax
+
+## Set levels to three unless set to 1 or 2 via -levels option
+[[ "$levels" =~ ^[1-2]$ ]] || levels=3
 maxlevel=$[$levels-1]
 
+[[ "$exclude" =~ ^[0-9]+$ ]] || exclude=0
+
+[[ "$par" =~ ^[0-9]+$ ]] || par=1
 hostname -f | grep -q hpc.ic.ac.uk ; hpc=$?
 [ $hpc -eq 0 ] && par=1 # Backgrounding not allowed on Imperial HPC
+
+[[ $queue =~ ^[[:alpha:]]+$ ]] || queue=
+
+# Do not spawn on cluster unless clusterthr is set to 0, 1, or 2
+[[ $clusterthr =~ ^[0-2]$ ]] || clusterthr=$levels 
 
 echo "Extracting $tgt"
 echo "Writing brain label to $result"
@@ -89,7 +122,7 @@ echo "Writing brain label to $result"
 # Functions
 
 cleartospawn() { 
-    local jobcount="$(jobs -r | grep -c .)"
+    local jobcount=$(jobs -r | grep -c .)
     if [ $jobcount -lt $par ] ; then
         return 0
     fi
@@ -97,37 +130,37 @@ cleartospawn() {
 }
 
 reg () {
-    local tgt=$1 ; shift
-    local tgt2=$1 ; shift
-    local src=$1 ; shift
-    local msk=$1 ; shift
-    local masktr=$1; shift
-    local dofin=$1; shift
-    local dofout=$1; shift
-    local spn=$1; shift
-    local tpn=$1; shift
-    local level=$1; shift
-    local ltd=$(mktemp -d reg$level.XXXXXX)
+    local tgt="$1" ; shift
+    local src="$1" ; shift
+    local srctr="$1" ; shift
+    local msk="$1" ; shift
+    local masktr="$1"; shift
+    local dofin="$1"; shift
+    local dofout="$1"; shift
+    local spn="$1"; shift
+    local tpn="$1"; shift
+    local level="$1"; shift
+    local ltd
+    ltd=$(mktemp -d "$PWD"/reg$level.XXXXXX)
     local job=j$level
     cat pbscore >$ltd/$job
-    cd $ltd
+    cd $ltd || fatal "Error: cannot cd to temp directory $ltd"
     case $level in 
 	0 ) 
-	    echo "dofcombine $spn $tpn pre.dof.gz -invert2 >>log 2>&1" >>$job 
-       	    # echo "transformation $atlasdir/callosum-subvol.nii.gz premask.nii.gz -sbased -dofin pre.dof.gz -target $tgt" >>$job
-	    echo "rreg2 $tgt $src -dofin pre.dof.gz -dofout $dofout -parin $td/lev0.reg" >>$job
-	    # echo "cp pre.dof.gz premask.nii.gz $td/$ltd/" >>$job
+	    echo "dofcombine "$spn" "$tpn" pre.dof.gz -invert2 >>"$ltd/log" 2>&1" >>$job 
+	    echo "rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout "$dofout" -parin "$td/lev0.reg" >>"$ltd/log" 2>&1" >>$job 
 	    ;;
 	1 ) 
-	    echo "areg2 $tgt $src -dofin $dofin -dofout $dofout -parin $td/lev1.reg" >>$job 
+	    echo "areg2 "$tgt" "$src" -dofin "$dofin" -dofout "$dofout" -parin "$td/lev1.reg" >>"$ltd/log" 2>&1" >>$job  
 	    ;;
 	[2-4] )
-	    echo "time nreg $tgt $src -dofin $dofin -dofout $dofout -parin $td/lev$level.reg >>log 2>&1" >> $job
+	    echo "nreg2 "$tgt" "$src" -dofin "$dofin" -dofout "$dofout" -parin "$td/lev$level.reg" -parout "$ltd/parout" >>"$ltd/log" 2>&1" >> $job
 	    ;;
     esac
-    echo "transformation $msk $masktr -sbased -dofin $dofout -target $tgt2 >>log 2>&1" >>$job
-    if [ $level -ge 0 ] && [ $par -eq 1 ] && [ $hpc -eq 0 ] ; then
-	echo $(qsub -l walltime=$[1800*$[$level+1]] $job) >>../reg-jobs
+    echo "transformation "$msk" "$masktr" -linear -dofin "$dofout" -target "$tgt" >>"$ltd/log" 2>&1" >>$job 
+    echo "transformation "$src" "$srctr" -linear -dofin "$dofout" -target "$tgt" >>"$ltd/log" 2>&1" >>$job 
+    if [[ $level -ge $clusterthr && $par -eq 1 && $hpc -eq 0 ]] ; then
+	echo $(qsub -l walltime=$[900*$[$level+1]] $job) >>../reg-jobs
     else
 	if [ $hpc -eq 1 ] ; then
 	    . $job &
@@ -140,213 +173,282 @@ reg () {
 }
 
 assess() {
-    local glabels=$1
-    test -e $ref || return 1
-    transformation $glabels assess.nii.gz -target $ref >>noisy.log 2>&1
-    echo -e "$glabels:\t\t"$(labelStats $ref assess.nii.gz -q)
+    local glabels="$1"
+    if [ -e ref.nii.gz ] ; then 
+	transformation "$glabels" assess.nii.gz -target ref.nii.gz >>noisy.log 2>&1
+	echo -e "$glabels:\t\t"$(labelStats ref.nii.gz assess.nii.gz -q | cut -d ',' -f 1)
+    fi
     return 0
 }
 
 # Temporary working directory
-test -e $tdbase || mkdir -p $tdbase
-td=$(mktemp -d $tdbase/$(basename $0).XXXXXX) || fatal "Could not create temp dir in $tdbase"
-trap 'if [ -e $outdir ] ; then mv $td $outdir/ ; else rm -rf $td ; fi' 0 1 15 
-cd $td
-echo "$commandline" >commandline.log
+test -e "$tdbase" || mkdir -p "$tdbase"
+td=$(mktemp -d "$tdbase/$(basename $0)-c$exclude.XXXXXX") || fatal "Could not create temp dir in $tdbase"
+trap 'if [ -e "$outdir" ] ; then mv "$td" "$outdir"/ ; else rm -rf "$td" ; fi' 0 1 15 
+cd "$td" || fatal "Error: cannot cd to temp directory $td"
 
-# Parameters (sets variables: fullsetsize, setsize[0..n])
-. $cdir/parameters
+echo "$commandline" >commandline.log
 
 # Rigid
 cat >lev0.reg << EOF
-No. of resolution levels          = 3
+
+#
+# Registration parameters
+#
+
+No. of resolution levels          = 2
 No. of bins                       = 64
 Epsilon                           = 0.0001
-Padding value                     = 0
-Source padding value              = 0
+Padding value                     = -1
+Source padding value              = -1
+Similarity measure                = NMI
+Interpolation mode                = Linear
+
+#
+# Registration parameters for resolution level 1
+#
+
 Resolution level                  = 1
-No. of iterations                 = 0
-Resolution level                  = 2
-No. of iterations                 = 40
-Target resolution (in mm)         = 2 2 2
-Source resolution (in mm)         = 2 2 2
 Target blurring (in mm)           = 1
+Target resolution (in mm)         = 2 2 2
 Source blurring (in mm)           = 1
-Resolution level                  = 3
-Target resolution (in mm)         = 5 5 5
-Source resolution (in mm)         = 5 5 5
-Target blurring (in mm)           = 2
-Source blurring (in mm)           = 2
+Source resolution (in mm)         = 2 2 2
 No. of iterations                 = 40
+Minimum length of steps           = 0.01
+Maximum length of steps           = 1
+
+#
+# Registration parameters for resolution level 2
+#
+
+Resolution level                  = 2
+Target blurring (in mm)           = 2
+Target resolution (in mm)         = 5 5 5
+Source blurring (in mm)           = 2
+Source resolution (in mm)         = 5 5 5
+No. of iterations                 = 40
+Minimum length of steps           = 0.01
 Maximum length of steps           = 2
+
 EOF
 
 # Affine
 cat >lev1.reg << EOF
-No. of resolution levels          = 3
+#
+# Registration parameters
+#
+
+No. of resolution levels          = 2
 No. of bins                       = 64
 Epsilon                           = 0.0001
 Padding value                     = 0
 Source padding value              = 0
-Resolution level                  = 1
-No. of iterations                 = 40
-Resolution level                  = 2
-No. of iterations                 = 40
-Resolution level                  = 3
-No. of iterations                 = 0
-EOF
+Similarity measure                = NMI
+Interpolation mode                = Linear
 
-# Coarse
-cat >lev2.reg <<EOF
-Padding value                     = 0
-No. of resolution levels          = 3
-Control point spacing in X        = 60
-Control point spacing in Y        = 60
-Control point spacing in Z        = 60
-Resolution level                  = 1
-Target resolution (in mm)         = 4 4 4
-Source resolution (in mm)         = 4 4 4
-Target blurring (in mm)           = 2
-Source blurring (in mm)           = 2
-No. of iterations                 = 40
-Resolution level                  = 2
-No. of iterations                 = 0
-Resolution level                  = 3
-No. of iterations                 = 0
-EOF
+#
+# Registration parameters for resolution level 1
+#
 
-# Medium
-cat >lev3.reg <<EOF
-Padding value                     = 0
-No. of resolution levels          = 2
-Control point spacing in X        = 16
-Control point spacing in Y        = 16
-Control point spacing in Z        = 16
 Resolution level                  = 1
-Target resolution (in mm)         = 2 2 2
-Source resolution (in mm)         = 2 2 2
-Target blurring (in mm)           = 1
-Source blurring (in mm)           = 1
-No. of iterations                 = 40
-Resolution level                  = 2
-No. of iterations                 = 0
-EOF
-
-# Fine
-cat >lev4.reg <<EOF
-Padding value                     = 0
-No. of resolution levels          = 1
-Control point spacing in X        = 3
-Control point spacing in Y        = 3
-Control point spacing in Z        = 3
-Resolution level                  = 1
-Target resolution (in mm)         = 0 0 0
-Source resolution (in mm)         = 0 0 0
 Target blurring (in mm)           = 0
+Target resolution (in mm)         = 0 0 0
 Source blurring (in mm)           = 0
+Source resolution (in mm)         = 0 0 0
 No. of iterations                 = 40
+Minimum length of steps           = 0.01
+Maximum length of steps           = 1
+
+#
+# Registration parameters for resolution level 2
+#
+
+Resolution level                  = 2
+Target blurring (in mm)           = 1.5
+Target resolution (in mm)         = 3 3 3
+Source blurring (in mm)           = 1.5
+Source resolution (in mm)         = 3 3 3
+No. of iterations                 = 40
+Minimum length of steps           = 0.01
+Maximum length of steps           = 1
+
 EOF
 
+# Nonrigid
+cat >lev2.reg <<EOF
+#
+# Non-rigid registration parameters
+#
+
+Lambda1                           = 0.0001
+Lambda2                           = 1
+Lambda3                           = 1
+Control point spacing in X        = 6
+Control point spacing in Y        = 6
+Control point spacing in Z        = 6
+Subdivision                       = True
+MFFDMode                          = True
+
+#
+# Registration parameters
+#
+
+No. of resolution levels          = 1
+No. of bins                       = 128
+Epsilon                           = 0.0001
+Padding value                     = 0
+Source padding value              = 0
+Similarity measure                = NMI
+Interpolation mode                = Linear
+
+#
+# Skip resolution level 1
+#
+
+Resolution level                  = 1
+Target blurring (in mm)           = 0
+Target resolution (in mm)         = 0 0 0
+Source blurring (in mm)           = 0
+Source resolution (in mm)         = 0 0 0
+No. of iterations                 = 40
+Minimum length of steps           = 0.01
+Maximum length of steps           = 2
+EOF
+
+[ -n "$queue" ] && queueline="PBS -q $queue"
 cat >pbscore <<EOF
 #!/bin/bash
 #PBS -l mem=1900mb,ncpus=1
 #PBS -j oe
-# -q pqneuro
-. $cdir/common
-export PATH=$irtk:\$PATH
+#$queueline
+. "$cdir"/common
+export PATH="$irtk":\$PATH
 EOF
 
 # Target preparation
-echo $LD_LIBRARY_PATH
-originalorigin=$(info $tgt | grep origin | cut -d ' ' -f 4-6)
-headertool $tgt target-full.nii.gz -origin 0 0 0
-convert $tgt target-full.nii.gz -float
-convert target-full.nii.gz target-full-char.nii.gz -uchar
+originalorigin=$(info "$tgt" | grep origin | cut -d ' ' -f 4-6)
+headertool "$tgt" target-full.nii.gz -origin 0 0 0
+convert "$tgt" target-full.nii.gz -float
+[ -e "$ref" ] && cp "$ref" ref.nii.gz
 
 # Arrays
 levelname[0]="rigid"
 levelname[1]="affine"
-levelname[2]="coarse"
-levelname[3]="medium"
-levelname[4]="fine"
-levelname[5]="none"
-dil[0]=6
-ero[0]=6
-dil[1]=5
-ero[1]=5
-dil[2]=3
-ero[2]=3
-dil[3]=2
-ero[3]=2
-dil[4]=1
-ero[4]=1
+levelname[2]="nonrigid"
+levelname[3]="none"
+
+dmaskdil[0]=3
+dmaskdil[1]=3
+
+thr[0]=56
+thr[1]=60
+thr[2]=60
 
 # Initialize first loop
-tgt=$PWD/target-full.nii.gz
-segtgt=$PWD/target-full.nii.gz
+tgt="$PWD"/target-full.nii.gz
 prevlevel=init
-seq 1 $fullsetsize | grep -vw $exclude >selection-$prevlevel.csv
+if [[ $lpba40 = true ]] ; then
+    atlasn=80
+    seq 1 $atlasn | grep -vw $exclude | grep -vw $[$exclude+40] >selection-$prevlevel.csv
+    nselected=$(cat selection-$prevlevel.csv | wc -l)
+    size[0]=57
+    size[1]=47
+    size[2]=17
+else
+    seq 1 $atlasn | grep -vw $exclude | grep -vw $[$exclude+30] >selection-$prevlevel.csv
+    nselected=$(cat selection-$prevlevel.csv | wc -l)
+    usepercent=$(echo $nselected | awk '{ printf "%.0f", 100*(18/$1)^(1/3) } ')
+fi
 
 for level in $(seq 0 $maxlevel) ; do
     thislevel=${levelname[$level]}
+    thisthr=${thr[$level]}
 # Registration
     echo "Level $thislevel"
     for srcindex in $(cat selection-$prevlevel.csv) ; do
 	sourcenii=m$srcindex.nii.gz
-	src=$atlasdir/limages/full/$sourcenii
-	msk=$atlasdir/lmasks/full/$sourcenii
-	masktr=$PWD/masktr-$thislevel-s$srcindex.nii.gz
-	dofin=$PWD/reg-s$srcindex-$prevlevel.dof.gz 
-	dofout=$PWD/reg-s$srcindex-$thislevel.dof.gz
-	spn=$atlasdir/posnorm/m$srcindex.dof.gz
-	reg $tgt $segtgt $src $msk $masktr $dofin $dofout $spn $tpn $level
+	src="$atlasdir"/limages/full/$sourcenii
+	[ $level -ge 2 ] && src="$atlasdir"/limages/margin-d5/$sourcenii
+	srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
+	msk="$atlasdir"/lmasks/full/$sourcenii
+	masktr="$PWD"/masktr-$thislevel-s$srcindex.nii.gz
+	dofin="$PWD"/reg-s$srcindex-$prevlevel.dof.gz 
+	dofout="$PWD"/reg-s$srcindex-$thislevel.dof.gz
+	spn="$atlasdir"/posnorm/m$srcindex.dof.gz
+	reg "$tgt" "$src" "$srctr" "$msk" "$masktr" "$dofin" "$dofout" "$spn" "$tpn" $level
 	echo -n .
-	while true ; do cleartospawn && break ; sleep 10 ; done
+	while true ; do cleartospawn && break ; sleep 8 ; done
     done
     echo
+# Wait for registration results
     if [ -e reg-jobs ] ; then
-	while true ; do qstat | grep -qwf reg-jobs || break ; sleep 3 ; done
+	while true ; do 
+	    qstat | grep -qwf reg-jobs || break ; 
+	    available=$(ls masktr-$thislevel-s*.nii.gz 2>/dev/null | wc -l)
+	    [ $available -ge $nselected ] && break
+	    waitsec=$[$nselected-$available]
+	    [ $waitsec -gt 8 ] && waitsec=8
+	    sleep $waitsec 
+	done
+	sleep 1
 	rm reg-jobs
 	else
 	wait
     fi
 # Generate reference for atlas selection (fused from all)
-    thissize=$(ls masktr-$thislevel-s* | wc -l)
-    atlas tmask-$thislevel-atlas.nii.gz masktr-$thislevel-s*.nii.gz -scaling 100 >>noisy.log 2>&1
-    threshold tmask-$thislevel-atlas.nii.gz tmask-$thislevel.nii.gz 50
+    set -- $(ls masktr-$thislevel-s*)
+    thissize=$#
+    set -- $(echo $@ | sed 's/ / -add /g')
+    seg_maths $@ -div $thissize tmask-$thislevel-atlas.nii.gz
+    seg_maths tmask-$thislevel-atlas.nii.gz -thr 0.$thisthr -bin tmask-$thislevel.nii.gz 
+    dilation tmask-$thislevel.nii.gz tmask-$thislevel-wide.nii.gz -iterations 1 >>noisy.log 2>&1
+    erosion tmask-$thislevel.nii.gz tmask-$thislevel-narrow.nii.gz -iterations 1 >>noisy.log 2>&1
+    subtract tmask-$thislevel-wide.nii.gz tmask-$thislevel-narrow.nii.gz emargin-$thislevel.nii.gz >>noisy.log 2>&1
+    dilation emargin-$thislevel.nii.gz emargin-$thislevel-dil.nii.gz -iterations 3 >>noisy.log 2>&1
+    padding target-full.nii.gz emargin-$thislevel-dil.nii.gz emasked-$thislevel.nii.gz 0 0
     assess tmask-$thislevel.nii.gz
 # Selection
     echo "Selecting"
-    for srcindex in $(cat selection-$prevlevel.csv) ; do
-	if [ -e masktr-$thislevel-s$srcindex.nii.gz ] ; then
-	    echo $(labelStats tmask-$thislevel.nii.gz masktr-$thislevel-s$srcindex.nii.gz | cut -d , -f 5)",$srcindex"
+    for srcindex in $(cat selection-init.csv) ; do
+	srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
+	if [ -e $srctr ] ; then
+	    echo $(evaluation emasked-$thislevel.nii.gz $srctr -Tp 0 -mask emargin-$thislevel-dil.nii.gz -linear | grep NMI | cut -d ' ' -f 2 )",$srcindex"
 	fi
-    done | sort -n | tee overlaps-$thislevel.csv | cut -d , -f 2 | tail -n ${setsize[$level]} >selection-$thislevel.csv
-    nselected=$(cat selection-$thislevel.csv | wc -l)
+    done | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
+    if [[ $lpba40 = true ]] ; then 
+	nselected=${size[$level]}
+    else
+	nselected=$[$thissize*$usepercent/100]
+	[ $nselected -lt 9 ] && nselected=7
+    fi
+    split -l $nselected ranking-$thislevel.csv
+    mv xaa selection-$thislevel.csv
+    [ -e xab ] && cat x?? > unselected-$thislevel.csv 
     echo "Selected $nselected at $thislevel"
-# Build label from selection
-    atlaslist=$(cat selection-$thislevel.csv | while read item ; do echo masktr-$thislevel-s$item.nii.gz ; done)
-    atlas tmask-$thislevel-sel-atlas.nii.gz $atlaslist -scaling 100 >>noisy.log 2>&1
-    threshold tmask-$thislevel-sel-atlas.nii.gz tmask-$thislevel-sel.nii.gz 50
+# Build label from selection 
+    set -- $(head -n 19 selection-$thislevel.csv | while read -r item ; do echo masktr-$thislevel-s$item.nii.gz ; done)
+    thissize=$#
+    set -- $(echo $@ | sed 's/ / -add /g')
+    seg_maths $@ -div $thissize tmask-$thislevel-sel-atlas.nii.gz 
+    seg_maths tmask-$thislevel-sel-atlas.nii.gz -thr 0.$thisthr -bin tmask-$thislevel-sel.nii.gz 
     assess tmask-$thislevel-sel.nii.gz
 # Data mask (skip on last iteration)
     [ $level -eq $maxlevel ] && continue
-    threshold tmask-$thislevel-sel-atlas.nii.gz tmask-$thislevel-wide.nii.gz 5
-    threshold tmask-$thislevel-sel-atlas.nii.gz tmask-$thislevel-narrow.nii.gz 80
-    dilation tmask-$thislevel-wide.nii.gz tmask-$thislevel-wide-dil.nii.gz -iterations ${dil[$level]} >>noisy.log 2>&1
-    erosion tmask-$thislevel-narrow.nii.gz tmask-$thislevel-narrow-ero.nii.gz -iterations ${ero[$level]} >>noisy.log 2>&1
-    subtract tmask-$thislevel-wide-dil.nii.gz tmask-$thislevel-narrow-ero.nii.gz tmargin-$thislevel.nii.gz -no_norm >>noisy.log 2>&1
-    padding target-full.nii.gz tmargin-$thislevel.nii.gz target-masked.nii.gz 0 0
-    tgt=$PWD/target-masked.nii.gz
+    seg_maths tmask-$thislevel-sel-atlas.nii.gz -thr 0.15 -bin tmask-$thislevel-wide.nii.gz
+    seg_maths tmask-$thislevel-sel-atlas.nii.gz -thr 0.99 -bin tmask-$thislevel-narrow.nii.gz
+    subtract tmask-$thislevel-wide.nii.gz tmask-$thislevel-narrow.nii.gz dmargin-$thislevel.nii.gz -no_norm >>noisy.log 2>&1
+    dilation dmargin-$thislevel.nii.gz dmargin-$thislevel-dil.nii.gz -iterations ${dmaskdil[$level]} >>noisy.log 2>&1
+    padding target-full.nii.gz dmargin-$thislevel-dil.nii.gz dmasked-$thislevel.nii.gz 0 0
+    tgt="$PWD"/dmasked-$thislevel.nii.gz
     prevlevel=$thislevel
 done
 
-transformation tmask-$thislevel-sel.nii.gz output.nii.gz -target target-full-char.nii.gz >>noisy.log 2>&1
-headertool output.nii.gz $result -origin $originalorigin
+convert tmask-$thislevel-sel.nii.gz output.nii.gz -char >>noisy.log 2>&1
+headertool output.nii.gz "$result" -origin $originalorigin
 
-if [ ! -z $probresult ] ; then
-    atlas prob.nii.gz $atlaslist -scaling $nselected >>noisy.log 2>&1
-    headertool prob.nii.gz $probresult -origin $originalorigin
+if [ -n "$probresult" ] ; then
+    atlas prob.nii.gz $atlaslist >>noisy.log 2>&1
+    headertool prob.nii.gz "$probresult" -origin $originalorigin
 fi
 
 exit 0
