@@ -1,7 +1,7 @@
 #!/bin/bash
 
 p=$*
-
+set -vx
 test -e results || mkdir results
 test -e temp || mkdir temp
 
@@ -12,6 +12,6 @@ cdir=$(normalpath $cdir)
 for i in $p ; do
 
     c=$(normalpath $i)
-    pincram.sh $c -tpn $cdir/neutral.dof.gz -result $PWD/results/$(basename $c) -output $PWD/temp -atlas $cdir/atlas -par 4 -levels 3
+    pincram.sh $c -tpn $cdir/neutral.dof.gz -result $PWD/results/$(basename $c) -output $PWD/temp -atlas $cdir/../atlas -par 1 -levels 3
 
 done

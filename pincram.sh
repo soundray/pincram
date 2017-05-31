@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -vx
 cdir=$(dirname "$0")
 . $cdir/common
 cdir=$(normalpath "$cdir")
@@ -106,13 +106,13 @@ maxlevel=$[$levels-1]
 [[ "$exclude" =~ ^[0-9]+$ ]] || exclude=0
 
 [[ "$par" =~ ^[0-9]+$ ]] || par=1
-hostname -f | grep -q hpc.ic.ac.uk ; hpc=$?
-[ $hpc -eq 0 ] && par=1 # Backgrounding not allowed on Imperial HPC
 
 [[ $queue =~ ^[[:alpha:]]+$ ]] || queue=
 
 # Do not spawn on cluster unless clusterthr is set to 0, 1, or 2
 [[ $clusterthr =~ ^[0-2]$ ]] || clusterthr=$levels 
+
+. "$cdir"/pincram.rc
 
 echo "Extracting $tgt"
 echo "Writing brain label to $result"
@@ -157,15 +157,7 @@ reg () {
     esac
     echo "transformation "$msk" "$masktr" -linear -dofin "$dofout" -target "$tgt" >>"$ltd/log" 2>&1" >>$job 
     echo "transformation "$src" "$srctr" -linear -dofin "$dofout" -target "$tgt" >>"$ltd/log" 2>&1" >>$job 
-    if [[ $level -ge $clusterthr && $par -eq 1 && $hpc -eq 0 ]] ; then
-	echo $(qsub -l mem=$[500*$[$level+1]*$[$level+2]+900]mb:walltime=$[900*$[$level+1]] $job) >>../reg-jobs
-    else
-	if [ $hpc -eq 1 ] ; then
-	    . $job &
-	else
-	    . $job
-	fi
-    fi
+    . $job &
     cd ..
     return 0
 }
@@ -324,7 +316,7 @@ export PATH="$irtk":\$PATH
 EOF
 
 # Target preparation
-originalorigin=$(info "$tgt" | grep origin | cut -d ' ' -f 4-6)
+originalorigin=$(info "$tgt" | grep ^Image.origin | cut -d ' ' -f 4-6)
 headertool "$tgt" target-full.nii.gz -origin 0 0 0
 convert "$tgt" target-full.nii.gz -float
 [ -e "$ref" ] && cp "$ref" ref.nii.gz
@@ -337,12 +329,6 @@ levelname[3]="none"
 
 dmaskdil[0]=3
 dmaskdil[1]=3
-
-# Larger values result in a tighter mask
-# Default (56, 60, 60) gives balanced results
-thr[0]=56
-thr[1]=60
-thr[2]=60
 
 # Initialize first loop
 tgt="$PWD"/target-full.nii.gz
