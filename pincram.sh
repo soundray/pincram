@@ -28,8 +28,6 @@ Usage: $0 <input> <options> <-result result.nii.gz> \\
 
 -altout     : Name of file to receive alternative output label.  The output is a binary image
 
--marginout  : Name of file to receive output margin label. The output is a binary margin mask.
-
 -probresult : (Optional) name of file to receive output, a probabilistic label image.
 
 -workdir    : Working directory. Default is present working directory. Should be a network-accessible location
