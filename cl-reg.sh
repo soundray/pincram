@@ -32,10 +32,10 @@ tempdir () {
 
 set -e   # Terminate script at first error
 
-idx=$PBS_ARRAY_INDEX
+idx=$1
 if [[ -z $idx ]] ; then idx=$PARALLEL_SEQ ; fi
 
-wd=$PBS_O_WORKDIR
+wd=$PWD
 if [[ -z $wd ]] ; then wd=$PWD ; fi
 
 if [[ $ARCH == "bash" ]]
@@ -115,7 +115,6 @@ EOF
 dofcombine "$spn" "$tpn" pre.dof.gz -invert2
 echo rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg
 rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg >reg0-$idx.log 2>&1
-cp reg0-$idx.log $(dirname $dofout) 
 fi
 
 if [[ $lev == 1 ]] ; then
@@ -164,7 +163,6 @@ EOF
 
 echo areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
 areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg >reg1-$idx.log 2>&1
-cp reg1-$idx.log $(dirname $dofout) 
 fi
 
 if [[ $lev == 2 ]] ; then
@@ -212,14 +210,9 @@ EOF
 
 echo nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg
 nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg >reg2-$idx.log 2>&1
-cp reg2-$idx.log $(dirname $dofout) 
 fi
 
-transformation "$msk" masktr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
-transformation "$src" srctr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
-transformation "$alt" alttr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
-cp masktr.nii.gz "$masktr"
-cp srctr.nii.gz "$srctr"   
-cp alttr.nii.gz "$alttr"   
+transformation "$msk" masktr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt" && cp masktr.nii.gz "$masktr"
+transformation "$src" srctr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt" && cp srctr.nii.gz "$srctr"
+transformation "$alt" alttr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt" && cp alttr.nii.gz "$alttr"
 cp dofout.dof.gz "$dofout"
-sleep 1

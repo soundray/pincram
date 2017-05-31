@@ -33,4 +33,6 @@ normalpath () {
 
 export ARCH=pbs
 
+export PATH=~/software/niftyseg/build/seg-apps:$PATH
+
 set -e   # Terminate script at first error

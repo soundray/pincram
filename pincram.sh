@@ -224,7 +224,6 @@ for level in $(seq 0 $maxlevel) ; do
     echo -en "$masksready of $nselected calculated     "
     sleeptime=$[$level*5+5]
     sleep $sleeptime
-    set -vx
     until [[ $masksready -ge $minready ]]
     do 
 	prevmasksread=$masksready
@@ -234,7 +233,6 @@ for level in $(seq 0 $maxlevel) ; do
 	sleep $sleeptime
     done
     echo
-    set +vx
 
 # Generate reference for atlas selection (fused from all)
     echo "Building reference atlas for selection at level $thislevel"
