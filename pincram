@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Usage: pincram target.nii.gz brainlabel.nii.gz
+
+cdir=$(dirname $0)
+. $cdir/common
+cdir=$(normalpath $cdir)
+
+atlas=$cdir/atlas
+basedir=$PWD
+
+target=$(normalpath $1) ; shift
+test -e $target || fatal "Target $target does not exist"
+brainlabel=$(normalpath $1) ; shift
+touch $brainlabel || fatal "Could not write to $brainlabel"
+plabel=$(normalpath $1) ; shift
+touch $plabel || fatal "Could not write to $plabel"
+
+$cdir/pincram.sh $target -tpn $cdir/neutral.dof.gz -result $brainlabel -probresult $plabel -tempbase /tmp -output discard -atlas $atlas -par 30 -levels 4 

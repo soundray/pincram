@@ -1,0 +1,5 @@
+#!/bin/bash
+#PBS -l walltime=22:00:00
+#PBS -l mem=1900mb,ncpus=1
+#PBS -j oe
+
