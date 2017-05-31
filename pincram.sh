@@ -115,20 +115,18 @@ reg () {
 	0 ) 
 	    echo "dofcombine $spn $tpn pre.dof.gz -invert2 >>log 2>&1" >>$job 
        	    # echo "transformation $atlasdir/callosum-subvol.nii.gz premask.nii.gz -sbased -dofin pre.dof.gz -target $tgt" >>$job
-	    echo "rreg2 $tgt $src -dofin pre.dof.gz -dofout $dofout -parin $td/lev0.reg >>log 2>&1" >>$job
+	    echo "rreg2 $tgt $src -dofin pre.dof.gz -dofout $dofout -parin $td/lev0.reg" >>$job
 	    # echo "cp pre.dof.gz premask.nii.gz $td/$ltd/" >>$job
-	    echo "transformation $msk $masktr -dofin $dofout -sbased -target $tgt2 >>log 2>&1" >>$job
 	    ;;
 	1 ) 
-	    echo "areg2 $tgt $src -dofin $dofin -dofout $dofout -parin $td/lev1.reg >>log 2>&1" >>$job 
-	    echo "transformation $msk $masktr -dofin $dofout -sbased -target $tgt2 >>log 2>&1" >>$job
+	    echo "areg2 $tgt $src -dofin $dofin -dofout $dofout -parin $td/lev1.reg" >>$job 
 	    ;;
 	[2-4] )
-	    echo "nreg $tgt $src -dofin $dofin -dofout $dofout -parin $td/lev$level.reg >>log 2>&1" >> $job
-	    echo "transformation $msk $masktr -sbased -dofin $dofout -target $tgt2 >>log 2>&1" >>$job
+	    echo "time nreg $tgt $src -dofin $dofin -dofout $dofout -parin $td/lev$level.reg >>log 2>&1" >> $job
 	    ;;
     esac
-    if [ $level -ge 1 ] && [ $par -eq 1 ] && [ $hpc -eq 0 ] ; then
+    echo "transformation $msk $masktr -sbased -dofin $dofout -target $tgt2 >>log 2>&1" >>$job
+    if [ $level -ge 0 ] && [ $par -eq 1 ] && [ $hpc -eq 0 ] ; then
 	echo $(qsub -l walltime=$[1800*$[$level+1]] $job) >>../reg-jobs
     else
 	if [ $hpc -eq 1 ] ; then
@@ -165,6 +163,7 @@ No. of resolution levels          = 3
 No. of bins                       = 64
 Epsilon                           = 0.0001
 Padding value                     = 0
+Source padding value              = 0
 Resolution level                  = 1
 No. of iterations                 = 0
 Resolution level                  = 2
@@ -188,6 +187,7 @@ No. of resolution levels          = 3
 No. of bins                       = 64
 Epsilon                           = 0.0001
 Padding value                     = 0
+Source padding value              = 0
 Resolution level                  = 1
 No. of iterations                 = 40
 Resolution level                  = 2
@@ -251,11 +251,13 @@ cat >pbscore <<EOF
 #!/bin/bash
 #PBS -l mem=1900mb,ncpus=1
 #PBS -j oe
-#PBS -q pqneuro
+# -q pqneuro
+. $cdir/common
 export PATH=$irtk:\$PATH
 EOF
 
 # Target preparation
+echo $LD_LIBRARY_PATH
 originalorigin=$(info $tgt | grep origin | cut -d ' ' -f 4-6)
 headertool $tgt target-full.nii.gz -origin 0 0 0
 convert $tgt target-full.nii.gz -float
@@ -281,7 +283,7 @@ ero[4]=1
 
 # Initialize first loop
 tgt=$PWD/target-full.nii.gz
-segtgt=$PWD/target-full-char.nii.gz
+segtgt=$PWD/target-full.nii.gz
 prevlevel=init
 seq 1 $fullsetsize | grep -vw $exclude >selection-$prevlevel.csv
 
@@ -310,8 +312,8 @@ for level in $(seq 0 $maxlevel) ; do
     fi
 # Generate reference for atlas selection (fused from all)
     thissize=$(ls masktr-$thislevel-s* | wc -l)
-    atlas tmask-$thislevel-atlas.nii.gz masktr-$thislevel-s*.nii.gz -scaling $thissize >>noisy.log 2>&1
-    threshold tmask-$thislevel-atlas.nii.gz tmask-$thislevel.nii.gz $[$thissize/2] 
+    atlas tmask-$thislevel-atlas.nii.gz masktr-$thislevel-s*.nii.gz -scaling 100 >>noisy.log 2>&1
+    threshold tmask-$thislevel-atlas.nii.gz tmask-$thislevel.nii.gz 50
     assess tmask-$thislevel.nii.gz
 # Selection
     echo "Selecting"
@@ -324,13 +326,13 @@ for level in $(seq 0 $maxlevel) ; do
     echo "Selected $nselected at $thislevel"
 # Build label from selection
     atlaslist=$(cat selection-$thislevel.csv | while read item ; do echo masktr-$thislevel-s$item.nii.gz ; done)
-    atlas tmask-$thislevel-sel-atlas.nii.gz $atlaslist -scaling $nselected >>noisy.log 2>&1
-    threshold tmask-$thislevel-sel-atlas.nii.gz tmask-$thislevel-sel.nii.gz $[$nselected/2] 
+    atlas tmask-$thislevel-sel-atlas.nii.gz $atlaslist -scaling 100 >>noisy.log 2>&1
+    threshold tmask-$thislevel-sel-atlas.nii.gz tmask-$thislevel-sel.nii.gz 50
     assess tmask-$thislevel-sel.nii.gz
 # Data mask (skip on last iteration)
     [ $level -eq $maxlevel ] && continue
-    threshold tmask-$thislevel-sel-atlas.nii.gz tmask-$thislevel-wide.nii.gz 0
-    threshold tmask-$thislevel-sel-atlas.nii.gz tmask-$thislevel-narrow.nii.gz $[$nselected-1]
+    threshold tmask-$thislevel-sel-atlas.nii.gz tmask-$thislevel-wide.nii.gz 5
+    threshold tmask-$thislevel-sel-atlas.nii.gz tmask-$thislevel-narrow.nii.gz 80
     dilation tmask-$thislevel-wide.nii.gz tmask-$thislevel-wide-dil.nii.gz -iterations ${dil[$level]} >>noisy.log 2>&1
     erosion tmask-$thislevel-narrow.nii.gz tmask-$thislevel-narrow-ero.nii.gz -iterations ${ero[$level]} >>noisy.log 2>&1
     subtract tmask-$thislevel-wide-dil.nii.gz tmask-$thislevel-narrow-ero.nii.gz tmargin-$thislevel.nii.gz -no_norm >>noisy.log 2>&1
@@ -342,7 +344,9 @@ done
 transformation tmask-$thislevel-sel.nii.gz output.nii.gz -target target-full-char.nii.gz >>noisy.log 2>&1
 headertool output.nii.gz $result -origin $originalorigin
 
-[ -z $probresult ] && exit 0
-headertool tmask-$thislevel-sel-atlas.nii.gz $probresult -origin $originalorigin
+if [ ! -z $probresult ] ; then
+    atlas prob.nii.gz $atlaslist -scaling $nselected >>noisy.log 2>&1
+    headertool prob.nii.gz $probresult -origin $originalorigin
+fi
 
 exit 0
