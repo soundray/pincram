@@ -10,50 +10,50 @@ commandline="$pn $*"
 
 # Parameter handling
 usage () { 
-echo
-echo "pincram version 0.2 "
-echo
-echo "Copyright (C) 2012-2015 Rolf A. Heckemann "
-echo "Web site: http://www.soundray.org/pincram "
-echo 
-echo "Usage: $0 <input> <options> <-result result.nii.gz> \\ "
-echo "                       [-probresult probresult.nii.gz] \\ "
-echo "                       [-workdir working_directory] [-savewd] \\ "
-echo "                       [-atlas atlas_directory | -atlas file.csv] [-atlasn N ] \\ "
-echo "                       [-levels {1..3}] [-par max_parallel_jobs] [-ref ref.nii.gz] "
-echo 
-echo "<input>     : T1-weighted magnetic resonance image in gzipped NIfTI format."
-echo 
-echo "-result     : Name of file to receive output brain label. The output is a binary label image."
-echo 
-echo "-altout     : Name of file to receive alternative output label.  The output is a binary image"
-echo 
-echo "-marginout  : Name of file to receive output margin label. The output is a binary margin mask."
-echo 
-echo "-probresult : (Optional) name of file to receive output, a probabilistic label image."
-echo 
-echo "-workdir    : Working directory. Default is present working directory. Should be a network-accessible location"
-echo 
-echo "-savewd     : (Optional) By default, the temporary directory under the working directory"
-echo "              will be deleted after processing. Set this flag to keep intermediate files."
-echo 
-echo "-atlas      : Atlas directory."
-echo "              Has to contain limages/full/m{1..n}.nii.gz, lmasks/full/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz "
-echo "              Alternatively, it can point to a csv spreadsheet: first row should be base directory for atlas "
-echo "              files. Entries should be relative to base directory. Each row refers to one atlas.  "
-echo "              Column 1: atlasname, column 2: full image, column 3: margin image, column 4: mask, column 5: transformation "
-echo "              (.dof format) for positional normalization. Atlasname should be unique across entries." 
-echo 
-echo "-tpn        : Rigid transformation for positional normalization of the target image (optional)"
-echo 
-echo "-atlasn     : Use a maximum of N atlases.  By default, all available are used."
-echo 
-echo "-levels     : Integer, minimum 1, maximum 3. Indicates level of refinement required."
-echo 
-echo "-ref        : Reference label against which to log Jaccard overlap results."
-echo 
-echo "-par        : Number of jobs to run in parallel (shell level).  Please use with consideration."
-echo 
+cat <<EOF
+pincram version 0.2 
+
+Copyright (C) 2012-2015 Rolf A. Heckemann 
+Web site: http://www.soundray.org/pincram 
+
+Usage: $0 <input> <options> <-result result.nii.gz> \\ 
+                       [-probresult probresult.nii.gz] \\ 
+                       [-workdir working_directory] [-savewd] \\ 
+                       [-atlas atlas_directory | -atlas file.csv] [-atlasn N ] \\ 
+                       [-levels {1..3}] [-par max_parallel_jobs] [-ref ref.nii.gz] 
+
+<input>     : T1-weighted magnetic resonance image in gzipped NIfTI format.
+
+-result     : Name of file to receive output brain label. The output is a binary label image.
+
+-altout     : Name of file to receive alternative output label.  The output is a binary image
+
+-marginout  : Name of file to receive output margin label. The output is a binary margin mask.
+
+-probresult : (Optional) name of file to receive output, a probabilistic label image.
+
+-workdir    : Working directory. Default is present working directory. Should be a network-accessible location
+
+-savewd     : (Optional) By default, the temporary directory under the working directory
+              will be deleted after processing. Set this flag to keep intermediate files.
+
+-atlas      : Atlas directory.
+              Has to contain limages/full/m{1..n}.nii.gz, lmasks/full/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz 
+              Alternatively, it can point to a csv spreadsheet: first row should be base directory for atlas 
+              files. Entries should be relative to base directory. Each row refers to one atlas.  
+              Column 1: atlasname, column 2: full image, column 3: margin image, column 4: mask, column 5: transformation 
+              (.dof format) for positional normalization. Atlasname should be unique across entries. 
+
+-tpn        : Rigid transformation for positional normalization of the target image (optional)
+
+-atlasn     : Use a maximum of N atlases.  By default, all available are used.
+
+-levels     : Integer, minimum 1, maximum 3. Indicates level of refinement required.
+
+-ref        : Reference label against which to log Jaccard overlap results.
+
+-par        : Number of jobs to run in parallel (shell level).  Please use with consideration.
+EOF
 fatal "Parameter error"
 }
 
