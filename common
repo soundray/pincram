@@ -25,5 +25,6 @@ normalpath () {
     echo $(cd $dir && pwd)/$bas
 }
 
+ARCH=pbs
 
 set -e   # Terminate script at first error

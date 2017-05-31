@@ -1,4 +1,5 @@
 # t_l settings
+# Smaller values result in more generous masks
 # {56, 60, 60} gives balanced results
 thr[0]=56
 thr[1]=60

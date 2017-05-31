@@ -1,0 +1,57 @@
+#!/bin/bash
+
+cdir=$(dirname "$0")
+. "$cdir"/common
+cdir=$(normalpath "$cdir")
+
+pn=$0
+prog=$(basename "$pn")
+comline="$cdir/$prog $*"
+
+# parameters
+datalist=
+ijobs="100%"
+arch="pbs"
+mem=7900
+while [ $# -gt 0 ]
+do
+    case "$1" in
+	-script)            script="$2"; shift;;
+	-datalist)        datalist="$2"; shift;;
+	-jobs)               ijobs="$2"; shift;;
+	-arch)                arch="$2"; shift;;
+	-mem)                  mem="$2"; shift;;
+    --) shift; break;;
+    -*)
+        echo >&2 \
+	         "Usage: $0 -script script.sh -datalist list.sh -jobs max-parallel -arch [pbs|ge|bash] -mem memory"
+    exit 1;;
+*)  break;;# terminate while loop
+    esac
+    shift
+done
+
+jobs=$ijobs
+[[ $jobs =~ ^[0-9]+%?$ ]] || fatal "Non-numeric setting for -jobs"
+
+[[ -e $datalist ]] || fatal "Data list $datalist not found"
+datalist=$(normalpath $datalist)
+
+case $arch in
+    ge)
+	fatal "$arch not implemented"
+	;;
+    pbs)
+	cd $PINCRAM_WORKDIR
+	n=$(cat $datalist | wc -l)
+	pbsjob=$(qsub -J 1-$n -q med-bio -l walltime=00:12:00 -l mem=${mem}mb -j oe $script)
+	;;
+    bash)
+	echo $PATH | grep -qi pbs && fatal "PBS available -- refusing to process with bash"
+	cat $datalist | parallel -j $jobs $script
+	;;
+    *)
+	fatal "$arch not implemented"
+esac	  
+
+exit 0

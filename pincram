@@ -1,17 +1,12 @@
 #!/bin/bash
 
-p=$*
-
-test -e results || mkdir results
-test -e temp || mkdir temp
+p=$1 ; shift
+r=$1 ; shift
 
 cdir=$(dirname $0)
 . $cdir/common
 cdir=$(normalpath $cdir)
 
-for i in $p ; do
+c=$(normalpath $i)
 
-    c=$(normalpath $i)
-    pincram.sh $c -tpn $cdir/neutral.dof.gz -result $PWD/results/$(basename $c) -output $PWD/temp -atlas $cdir/../atlas -par 1 -levels 3
-
-done
+pincram.sh $c -tpn $cdir/neutral.dof.gz -result $r -atlas $cdir/../atlas -par 1 -levels 3
