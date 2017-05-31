@@ -26,6 +26,8 @@ echo "<input>     : T1-weighted magnetic resonance image in gzipped NIfTI format
 echo 
 echo "-result     : Name of file to receive output brain label. The output is a binary label image."
 echo 
+echo "-altout     : Name of file to receive alternative output label.  The output is a binary image"
+echo 
 echo "-marginout  : Name of file to receive output margin label. The output is a binary margin mask."
 echo 
 echo "-probresult : (Optional) name of file to receive output, a probabilistic label image."
