@@ -238,7 +238,7 @@ for level in $(seq 0 $maxlevel) ; do
 	set -- $(head -n $[$srcindex+1] $atlas | tail -n 1 | tr ',' ' ')
 	atlasname=$1 ; shift
 	src=$atlasbase/$1 ; shift
-	if [[ $level -ge 2 ]] ; then src=$atlasbase/$1 ; fi
+#	if [[ $level -ge 1 ]] ; then src=$atlasbase/$1 ; fi
 	shift
 	msk=$atlasbase/$1 ; shift
 	spn=$atlasbase/$1 ; shift
@@ -274,7 +274,7 @@ for level in $(seq 0 $maxlevel) ; do
     echo "Building reference atlas for selection at level $thislevel"
     set -- $(ls masktr-$thislevel-s*)
     thissize=$#
-    [[ $thissize -le 3 ]] && fatal "Mask generation failed at level $thislevel" 
+    [[ $thissize -gt 3 ]] || fatal "Mask generation failed at level $thislevel" 
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-atlas.nii.gz
     seg_maths tmask-$thislevel-atlas.nii.gz -thr 0.$thisthr -bin tmask-$thislevel.nii.gz 
