@@ -62,7 +62,6 @@ exclude=0
 atlasdir=$(normalpath "$cdir"/atlas)
 atlasn=0
 tdbase="$cdir"/temp
-lpba40=
 outdir=notspecified
 while [ $# -gt 0 ]
 do
@@ -80,7 +79,6 @@ do
 	-par)               par="$2"; shift;;
 	-queue)           queue="$2"; shift;;
 	-clusterthr) clusterthr="$2"; shift;;
-	-lpba40)         lpba40="true";;
 	--) shift; break;;
         -*)
             usage;;
@@ -340,6 +338,8 @@ levelname[3]="none"
 dmaskdil[0]=3
 dmaskdil[1]=3
 
+# Larger values result in a tighter mask
+# Default (56, 60, 60) gives balanced results
 thr[0]=56
 thr[1]=60
 thr[2]=60
@@ -347,18 +347,9 @@ thr[2]=60
 # Initialize first loop
 tgt="$PWD"/target-full.nii.gz
 prevlevel=init
-if [[ $lpba40 = true ]] ; then
-    atlasn=80
-    seq 1 $atlasn | grep -vw $exclude | grep -vw $[$exclude+40] >selection-$prevlevel.csv
-    nselected=$(cat selection-$prevlevel.csv | wc -l)
-    size[0]=57
-    size[1]=47
-    size[2]=17
-else
-    seq 1 $atlasn | grep -vw $exclude | grep -vw $[$exclude+30] >selection-$prevlevel.csv
-    nselected=$(cat selection-$prevlevel.csv | wc -l)
-    usepercent=$(echo $nselected | awk '{ printf "%.0f", 100*(8/$1)^(1/3) } ')
-fi
+seq 1 $atlasn | grep -vw $exclude | grep -vw $[$exclude+30] >selection-$prevlevel.csv
+nselected=$(cat selection-$prevlevel.csv | wc -l)
+usepercent=$(echo $nselected | awk '{ printf "%.0f", 100*(8/$1)^(1/3) } ')
 
 for level in $(seq 0 $maxlevel) ; do
     thislevel=${levelname[$level]}
@@ -419,12 +410,8 @@ for level in $(seq 0 $maxlevel) ; do
 	    echo $(evaluation emasked-$thislevel.nii.gz $srctr -Tp 0 -mask emargin-$thislevel-dil.nii.gz -linear | grep NMI | cut -d ' ' -f 2 )",$srcindex"
 	fi
     done | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
-    if [[ $lpba40 = true ]] ; then 
-	nselected=${size[$level]}
-    else
-	nselected=$[$thissize*$usepercent/100]
-	[ $nselected -lt 9 ] && nselected=7
-    fi
+    nselected=$[$thissize*$usepercent/100]
+    [ $nselected -lt 9 ] && nselected=7
     split -l $nselected ranking-$thislevel.csv
     mv xaa selection-$thislevel.csv
     [ -e xab ] && cat x?? > unselected-$thislevel.csv 
