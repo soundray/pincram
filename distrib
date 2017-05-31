@@ -46,8 +46,8 @@ case $arch in
 	;;
     pbs)
 	cd $PINCRAM_WORKDIR
-	levelplus=$[$level+2]
-	tmin=$[$level*$levelplus+$levelplus]
+	levelplus=$[$level+3]
+	tmin=$[$level*$levelplus+$levelplus+$levelplus]
 	n=$(cat $datalist | wc -l)
 	pbsjob=$(qsub -J 1-$n -q med-bio -l walltime=00:$tmin:00 -j oe $script)
 	;;

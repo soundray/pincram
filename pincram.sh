@@ -222,20 +222,26 @@ for level in $(seq 0 $maxlevel) ; do
     # minready=$[$nselected*96/100] # Speedup at the cost of reproducibility
     minready=$nselected
     echo -en "$masksready of $nselected calculated     "
+    sleeptime=$[$level*5+5]
+    sleep $sleeptime
+    set -vx
     until [[ $masksready -ge $minready ]]
     do 
+	prevmasksread=$masksready
 	set -- masktr-$thislevel-s* 
 	masksready=$#
-	(( loopcount += 1 )) 
-	[[ $loopcount -gt 1000 ]] && fatal "Waited too long" 
-	sleep $[$level*5+5]
-	echo -en \\r"$masksready of $nselected calculated     "
+	echo -en "$masksready of $nselected calculated     " | tee -a noisy.log
+	sleep $sleeptime
     done
     echo
+    set +vx
 
 # Generate reference for atlas selection (fused from all)
     echo "Building reference atlas for selection at level $thislevel"
-    set -- $(ls masktr-$thislevel-s*)
+    for i in masktr-$thislevel-s* ; do 
+	[[ -s $i ]] || mv $i failed-$i
+    done
+    set -- masktr-$thislevel-s*
     thissize=$#
     [[ $thissize -gt 3 ]] || fatal "Mask generation failed at level $thislevel" 
     set -- $(echo $@ | sed 's/ / -add /g')
