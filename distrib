@@ -20,11 +20,11 @@ do
 	-datalist)        datalist="$2"; shift;;
 	-jobs)               ijobs="$2"; shift;;
 	-arch)                arch="$2"; shift;;
-	-mem)                  mem="$2"; shift;;
+	-level)             ilevel="$2"; shift;;
     --) shift; break;;
     -*)
         echo >&2 \
-	         "Usage: $0 -script script.sh -datalist list.sh -jobs max-parallel -arch [pbs|ge|bash] -mem memory"
+	         "Usage: $0 -script script.sh -datalist list.sh -jobs max-parallel -arch [pbs|ge|bash] -level level"
     exit 1;;
 *)  break;;# terminate while loop
     esac
@@ -33,6 +33,9 @@ done
 
 jobs=$ijobs
 [[ $jobs =~ ^[0-9]+%?$ ]] || fatal "Non-numeric setting for -jobs"
+
+level=$ilevel
+[[ $level =~ ^[0-9]+%?$ ]] || fatal "Non-numeric setting for -level"
 
 [[ -e $datalist ]] || fatal "Data list $datalist not found"
 datalist=$(normalpath $datalist)
@@ -43,8 +46,10 @@ case $arch in
 	;;
     pbs)
 	cd $PINCRAM_WORKDIR
+	levelplus=$[$level+2]
+	tmin=$[$level*$levelplus+$levelplus]
 	n=$(cat $datalist | wc -l)
-	pbsjob=$(qsub -J 1-$n -q med-bio -l walltime=00:12:00 -l mem=${mem}mb -j oe $script)
+	pbsjob=$(qsub -J 1-$n -q med-bio -l walltime=00:$tmin:00 -j oe $script)
 	;;
     bash)
 	echo $PATH | grep -qi pbs && fatal "PBS available -- refusing to process with bash"

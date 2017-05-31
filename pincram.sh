@@ -24,7 +24,9 @@ echo "                       [-levels {1..3}] [-par max_parallel_jobs] [-ref ref
 echo 
 echo "<input>     : T1-weighted magnetic resonance image in gzipped NIfTI format."
 echo 
-echo "-result     : Name of file to receive output. The output is a binary brain label image."
+echo "-result     : Name of file to receive output brain label. The output is a binary label image."
+echo 
+echo "-marginout  : Name of file to receive output margin label. The output is a binary margin mask."
 echo 
 echo "-probresult : (Optional) name of file to receive output, a probabilistic label image."
 echo 
@@ -60,6 +62,7 @@ test -e $tgt || fatal "No image found -- $t"
 
 tpn="$cdir"/neutral.dof.gz
 result=
+altout=
 probresult=
 par=1
 ref=none
@@ -72,6 +75,7 @@ do
     case "$1" in
 	-tpn)               tpn=$(normalpath "$2"); shift;;
 	-result)         result=$(normalpath "$2"); shift;;
+	-altout)         altout=$(normalpath "$2"); shift;;
 	-probresult) probresult=$(normalpath "$2"); shift;;
 	-atlas)           atlas=$(normalpath "$2"); shift;;
 	-workdir)       workdir=$(normalpath "$2"); shift;;
@@ -125,48 +129,11 @@ cleartospawn() {
     return 1
 }
 
-reg () {
-    local tgt="$1" ; shift
-    local src="$1" ; shift
-    local srctr="$1" ; shift
-    local msk="$1" ; shift
-    local masktr="$1"; shift
-    local dofin="$1"; shift
-    local dofout="$1"; shift
-    local spn="$1"; shift
-    local tpn="$1"; shift
-    local level="$1"; shift
-    local ltd
-    ltd=$(mktemp -d "$PWD"/reg$level.XXXXXX)
-    local job=j$level
-#    cat pbscore >$ltd/$job
-    cd $ltd || fatal "Error: cannot cd to temp directory $ltd"
-    case $level in 
-	0 ) 
-	    echo "dofcombine "$spn" "$tpn" pre.dof.gz -invert2 >>"$ltd/log" 2>&1" >>$job 
-	    echo "rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout "$dofout" -parin "$td/lev0.reg" >>"$ltd/log" 2>&1" >>$job 
-	    ;;
-	1 ) 
-	    echo "areg2 "$tgt" "$src" -dofin "$dofin" -dofout "$dofout" -parin "$td/lev1.reg" >>"$ltd/log" 2>&1" >>$job  
-	    ;;
-	2 )
-	    echo "nreg2 "$tgt" "$src" -dofin "$dofin" -dofout "$dofout" -parin "$td/lev$level.reg" -parout "$ltd/parout" >>"$ltd/log" 2>&1" >> $job
-	    ;;
-	* )
-	    fatal "Error in registration call -- level $level"
-	    ;;
-    esac
-    echo "transformation "$msk" "$masktr" -linear -dofin "$dofout" -target "$tgt" >>"$ltd/log" 2>&1" >>$job 
-    echo "transformation "$src" "$srctr" -linear -dofin "$dofout" -target "$tgt" >>"$ltd/log" 2>&1" >>$job 
-    cd ..
-    return 0
-}
-
 assess() {
     local glabels="$1"
     if [ -e ref.nii.gz ] ; then 
 	transformation "$glabels" assess.nii.gz -target ref.nii.gz >>noisy.log 2>&1
-	echo -e "${glabels}:\t\t"$(labelStats ref.nii.gz assess.nii.gz -q | cut -d ',' -f 1)
+	echo -e "${glabels}:\t\t"$(labelStats ref.nii.gz assess.nii.gz -false)
     fi
     return 0
 }
@@ -193,22 +160,11 @@ atlasmax=$[$(cat $atlas | wc -l)-1]
 
 echo "$commandline" >commandline.log
 
-
-[ -n "$queue" ] && queueline="PBS -q $queue"
-cat >pbscore <<EOF
-#!/bin/bash
-#PBS -l ncpus=1
-#PBS -j oe
-#$queueline
-. "$cdir"/common
-export PATH="$irtk":\$PATH
-EOF
-
 # Target preparation
 originalorigin=$(info "$tgt" | grep ^Image.origin | cut -d ' ' -f 4-6)
 headertool "$tgt" target-full.nii.gz -origin 0 0 0
 convert "$tgt" target-full.nii.gz -float
-[ -e "$ref" ] && cp "$ref" ref.nii.gz
+[ -e "$ref" ] && cp "$ref" ref.nii.gz && chmod +w ref.nii.gz
 
 # Arrays
 levelname[0]="rigid"
@@ -218,6 +174,11 @@ levelname[3]="none"
 
 dmaskdil[0]=3
 dmaskdil[1]=3
+
+mrgmaskdil[0]=19
+mrgmaskdil[1]=12
+mrgmaskdil[2]=8
+
 
 # Initialize first loop
 tgt="$PWD"/target-full.nii.gz
@@ -238,26 +199,28 @@ for level in $(seq 0 $maxlevel) ; do
 	set -- $(head -n $[$srcindex+1] $atlas | tail -n 1 | tr ',' ' ')
 	atlasname=$1 ; shift
 	src=$atlasbase/$1 ; shift
-#	if [[ $level -ge 1 ]] ; then src=$atlasbase/$1 ; fi
-	shift
-	msk=$atlasbase/$1 ; shift
+	mrg=$atlasbase/$1 ; shift
 	spn=$atlasbase/$1 ; shift
-    
+	msk=$atlasbase/$1 ; shift
+	alt=$atlasbase/$1 ; shift
+
+	if [[ $level -ge 2 ]] ; then src=$mrg ; fi
 	srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
 	masktr="$PWD"/masktr-$thislevel-s$srcindex.nii.gz
 	dofin="$PWD"/reg-s$srcindex-$prevlevel.dof.gz 
 	dofout="$PWD"/reg-s$srcindex-$thislevel.dof.gz
-    
-	echo "$tgt" "$src" "$srctr" "$msk" "$masktr" "$dofin" "$dofout" "$spn" "$tpn" $level >>$td/job.conf
+	alttr="$PWD"/alttr-$thislevel-s$srcindex.nii.gz
+
+	echo "-tgt $tgt" "-src $src" "-srctr $srctr" "-msk $msk" "-masktr $masktr" "-alt $alt" "-alttr $alttr" "-dofin $dofin" "-dofout $dofout" "-spn $spn" "-tpn $tpn" "-lev $level" >>$td/job.conf
     done
 
     cp job.conf job-$thislevel.conf
-    "$cdir"/distrib -script "$cdir"/reg$level.sh -datalist $td/job.conf -arch $ARCH -mem $[$level*1900+1900] 
+    "$cdir"/distrib -script "$cdir"/reg$level.sh -datalist $td/job.conf -arch $ARCH -level $level
 
     loopcount=0
     masksready=0
-    minready=$[$nselected*96/100] # Speedup at the cost of reproducibility
-    # minready=$nselected
+    # minready=$[$nselected*96/100] # Speedup at the cost of reproducibility
+    minready=$nselected
     echo -en "$masksready of $nselected calculated     "
     until [[ $masksready -ge $minready ]]
     do 
@@ -277,6 +240,7 @@ for level in $(seq 0 $maxlevel) ; do
     [[ $thissize -gt 3 ]] || fatal "Mask generation failed at level $thislevel" 
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-atlas.nii.gz
+# Generate target margin mask for similarity ranking and apply 
     seg_maths tmask-$thislevel-atlas.nii.gz -thr 0.$thisthr -bin tmask-$thislevel.nii.gz 
     dilation tmask-$thislevel.nii.gz tmask-$thislevel-wide.nii.gz -iterations 1 >>noisy.log 2>&1
     erosion tmask-$thislevel.nii.gz tmask-$thislevel-narrow.nii.gz -iterations 1 >>noisy.log 2>&1
@@ -300,6 +264,7 @@ for level in $(seq 0 $maxlevel) ; do
     echo "Selected $nselected at $thislevel"
 # Build label from selection 
     set -- $(cat selection-$thislevel.csv | while read -r item ; do echo masktr-$thislevel-s$item.nii.gz ; done)
+     #TODO: check for missing masktr-*
     thissize=$#
     [[ $thissize -gt 3 ]] || fatal "Mask generation failed at level $thislevel" 
     set -- $(echo $@ | sed 's/ / -add /g')
@@ -319,8 +284,18 @@ done
 
 echo -n "SI:" ; labelStats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -false
 
-convert tmask-$thislevel-sel.nii.gz output.nii.gz -uchar >>noisy.log 2>&1
+set -- $(cat selection-$thislevel.csv | while read -r item ; do echo alttr-$thislevel-s$item.nii.gz ; done) 
+#TODO: check for missing alttr-*
+set -- $(echo $@ | sed 's/ / -add /g')
+seg_maths $@ -div $thissize alt-$thislevel-sel-atlas.nii.gz
+seg_maths alt-$thislevel-sel-atlas.nii.gz -thr 0.$thisthr -bin alt-$thislevel-sel.nii.gz 
+seg_maths alt-$thislevel-sel.nii.gz -mul tmask-$thislevel-sel.nii.gz andmask.nii.gz
+seg_maths alt-$thislevel-sel.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask.nii.gz
+
+convert andmask.nii.gz output.nii.gz -uchar >>noisy.log 2>&1
+convert ormask.nii.gz altoutput.nii.gz -uchar >>noisy.log 2>&1
 headertool output.nii.gz "$result" -origin $originalorigin
+headertool altoutput.nii.gz "$altout" -origin $originalorigin
 
 if [ -n "$probresult" ] ; then
     atlas prob.nii.gz $atlaslist >>noisy.log 2>&1

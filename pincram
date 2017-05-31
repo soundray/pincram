@@ -1,12 +1,29 @@
 #!/bin/bash
 
-p=$1 ; shift
-r=$1 ; shift
+#PBS -q med-bio
+#PBS -J 1-10
+#PBS -l walltime=12:00:00
+#PBS -j oe
 
-cdir=$(dirname $0)
-. $cdir/common
-cdir=$(normalpath $cdir)
+scriptdir=$PBS_O_WORKDIR
+. $scriptdir/common
+outdir=$(normalpath $scriptdir/..)
 
-c=$(normalpath $i)
+pn=$(basename $0)
+commandline="$pn $*"
 
-pincram.sh $c -tpn $cdir/neutral.dof.gz -result $r -atlas $cdir/../atlas -par 1 -levels 3
+targetbase=$(head -n 1 $outdir/madfs/targets.csv)
+fn=$(head -n $[$PBS_ARRAY_INDEX+1] $outdir/madfs/targets.csv | tail -n 1)
+
+set -- $(echo $fn | tr , ' ')
+name=$1
+target=$targetbase/$2
+ref=$targetbase/$4
+posnorm=$targetbase/$5
+
+grep -v ^ixi$name, $outdir/madfs/atlas-combined-rnd-0.2.13.csv >atlas.csv
+
+levels=3
+atlasn=81
+
+$scriptdir/pincram.sh $target -tpn $posnorm -result $outdir/results/$name.nii.gz -altout $outdir/mresults/$name.nii.gz -ref $ref -workdir $outdir/work -atlas atlas.csv -levels $levels -atlasn $atlasn -savewd

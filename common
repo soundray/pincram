@@ -6,6 +6,12 @@ msg () {
     done
 }
 
+log () {
+    for msgline
+    do echo "$pn: $msgline" >>noisy.log
+    done
+}
+
 fatal () { msg "$@"; exit 1; }
 
 tempdir () {
@@ -25,6 +31,6 @@ normalpath () {
     echo $(cd $dir && pwd)/$bas
 }
 
-ARCH=pbs
+export ARCH=pbs
 
 set -e   # Terminate script at first error

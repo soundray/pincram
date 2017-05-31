@@ -9,10 +9,10 @@ atlascsv=$(normalpath $1)
 
 echo $atlasdir >$atlascsv
 
-find $atlasdir/limages/full/ -name m\*.nii.gz | while read i 
+find $atlasdir/images/full/ -name m\*.nii.gz | while read i 
 do
     bn=$(basename $i .nii.gz)
-    echo $bn,limages/full/$bn.nii.gz,limages/margin-d5/$bn.nii.gz,lmasks/full/$bn.nii.gz,posnorm/$bn.dof.gz
+    echo $bn,images/full/$bn.nii.gz,images/margin-d5/$bn.nii.gz,posnorm/$bn.dof.gz,brainmasks/$bn.nii.gz,icvmasks/$bn.nii.gz
 done >>$atlascsv
 
 exit 0
