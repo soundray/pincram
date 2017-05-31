@@ -8,16 +8,12 @@ pn=$(basename $0)
 
 commandline="$pn $*"
 
-# Check that binaries are available
-which rreg2 >/dev/null || fatal "IRTK rreg2 binary not found -- please ensure IRTK is on \$PATH"
-which seg_maths >/dev/null || fatal "Nifty Seg seg_maths binary not found -- please ensure Nifty Seg is on \$PATH"
-
 # Parameter handling
 usage () { 
 echo
 echo "pincram version 0.2 "
 echo
-echo "Copyright (C) 2012-2013 Rolf A. Heckemann "
+echo "Copyright (C) 2012 Rolf A. Heckemann "
 echo "Web site: http://www.soundray.org/pincram "
 echo 
 echo "Usage: $0 <input> <options> <-result result.nii.gz> <-output temp_output_dir> [-atlas atlas_directory] \\ "
@@ -27,7 +23,9 @@ echo "<input>     : T1-weighted magnetic resonance image in gzipped NIfTI format
 echo 
 echo "-result     : Name of file to receive output, a binary brain label image."
 echo 
-echo "-tempbase   : Temporary working directory.  Ideally a locally mounted directory."
+echo "-probresult : (Optional) name of file to receive output, a probabilistic label image."
+echo 
+echo "-tempbase   : Temporary working directory.  Ideally a local directory (but this does not work on HPC)."
 echo "              To store intermediate output for later access, see -output option."
 echo 
 echo "-output     : Directory to receive intermediate output.  If a non-existent location is given,"
@@ -35,12 +33,9 @@ echo "              intermediate files will be discarded.  If not specified, the
 echo "              be copied to the directory of the result file."
 echo 
 echo "-atlas      : Atlas directory."
-echo "            : Has to contain limages/full/m{1..n}.nii.gz, lmasks/full/m{1..n}.nii.gz "
-echo "            : limages/margin-d5/m{1..n}.nii.gz, lmasks/margin-d5/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz "
+echo "            : Has to contain limages/full/m{1..n}.nii.gz, lmasks/full/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz "
 echo 
 echo "-tpn        : Rigid transformation for positional normalization of the target image (optional)"
-echo "            : An image is considered positionally normalized if the centre of gravity is in the grid centre and"
-echo "            : the midsagittal plane coincides with the grid centre plane."
 echo 
 echo "-atlasn     : Maximum number of atlases to use.  By default, all available are used."
 echo 
@@ -67,6 +62,7 @@ exclude=0
 atlasdir=$(normalpath "$cdir"/atlas)
 atlasn=0
 tdbase="$cdir"/temp
+lpba40=
 outdir=notspecified
 while [ $# -gt 0 ]
 do
@@ -83,6 +79,8 @@ do
 	-excludeatlas)  exclude="$2"; shift;;
 	-par)               par="$2"; shift;;
 	-queue)           queue="$2"; shift;;
+	-clusterthr) clusterthr="$2"; shift;;
+	-lpba40)         lpba40="true";;
 	--) shift; break;;
         -*)
             usage;;
@@ -110,8 +108,13 @@ maxlevel=$[$levels-1]
 [[ "$exclude" =~ ^[0-9]+$ ]] || exclude=0
 
 [[ "$par" =~ ^[0-9]+$ ]] || par=1
+hostname -f | grep -q hpc.ic.ac.uk ; hpc=$?
+[ $hpc -eq 0 ] && par=1 # Backgrounding not allowed on Imperial HPC
 
 [[ $queue =~ ^[[:alpha:]]+$ ]] || queue=
+
+# Do not spawn on cluster unless clusterthr is set to 0, 1, or 2
+[[ $clusterthr =~ ^[0-2]$ ]] || clusterthr=$levels 
 
 echo "Extracting $tgt"
 echo "Writing brain label to $result"
@@ -140,6 +143,7 @@ reg () {
     local ltd
     ltd=$(mktemp -d "$PWD"/reg$level.XXXXXX)
     local job=j$level
+    cat pbscore >$ltd/$job
     cd $ltd || fatal "Error: cannot cd to temp directory $ltd"
     case $level in 
 	0 ) 
@@ -155,10 +159,14 @@ reg () {
     esac
     echo "transformation "$msk" "$masktr" -linear -dofin "$dofout" -target "$tgt" >>"$ltd/log" 2>&1" >>$job 
     echo "transformation "$src" "$srctr" -linear -dofin "$dofout" -target "$tgt" >>"$ltd/log" 2>&1" >>$job 
-    if [ $par -eq 1 ] ; then
-	. $job 
+    if [[ $level -ge $clusterthr && $par -eq 1 && $hpc -eq 0 ]] ; then
+	echo $(qsub -l walltime=$[900*$[$level+1]] $job) >>../reg-jobs
     else
-	. $job &
+	if [ $hpc -eq 1 ] ; then
+	    . $job &
+	else
+	    . $job
+	fi
     fi
     cd ..
     return 0
@@ -294,7 +302,7 @@ Similarity measure                = NMI
 Interpolation mode                = Linear
 
 #
-# Resolution level 1
+# Skip resolution level 1
 #
 
 Resolution level                  = 1
@@ -307,9 +315,19 @@ Minimum length of steps           = 0.01
 Maximum length of steps           = 2
 EOF
 
+[ -n "$queue" ] && queueline="PBS -q $queue"
+cat >pbscore <<EOF
+#!/bin/bash
+#PBS -l mem=1900mb,ncpus=1
+#PBS -j oe
+#$queueline
+. "$cdir"/common
+export PATH="$irtk":\$PATH
+EOF
+
 # Target preparation
 originalorigin=$(info "$tgt" | grep origin | cut -d ' ' -f 4-6)
-headertool "$tgt" target-full.nii.gz -origin 0 0 0 
+headertool "$tgt" target-full.nii.gz -origin 0 0 0
 convert "$tgt" target-full.nii.gz -float
 [ -e "$ref" ] && cp "$ref" ref.nii.gz
 
@@ -322,7 +340,6 @@ levelname[3]="none"
 dmaskdil[0]=3
 dmaskdil[1]=3
 
-# Reduce these if there is a strong penalty on underinclusion
 thr[0]=56
 thr[1]=60
 thr[2]=60
@@ -330,9 +347,18 @@ thr[2]=60
 # Initialize first loop
 tgt="$PWD"/target-full.nii.gz
 prevlevel=init
-seq 1 $atlasn | grep -vw $exclude >selection-$prevlevel.csv
-nselected=$(cat selection-$prevlevel.csv | wc -l)
-usepercent=$(echo $nselected | awk '{ printf "%.0f", 100*(8/$1)^(1/3) } ')
+if [[ $lpba40 = true ]] ; then
+    atlasn=80
+    seq 1 $atlasn | grep -vw $exclude | grep -vw $[$exclude+40] >selection-$prevlevel.csv
+    nselected=$(cat selection-$prevlevel.csv | wc -l)
+    size[0]=57
+    size[1]=47
+    size[2]=17
+else
+    seq 1 $atlasn | grep -vw $exclude | grep -vw $[$exclude+30] >selection-$prevlevel.csv
+    nselected=$(cat selection-$prevlevel.csv | wc -l)
+    usepercent=$(echo $nselected | awk '{ printf "%.0f", 100*(8/$1)^(1/3) } ')
+fi
 
 for level in $(seq 0 $maxlevel) ; do
     thislevel=${levelname[$level]}
@@ -355,8 +381,20 @@ for level in $(seq 0 $maxlevel) ; do
     done
     echo
 # Wait for registration results
-    wait
-
+    if [ -e reg-jobs ] ; then
+	while true ; do 
+	    qstat | grep -qwf reg-jobs || break ; 
+	    available=$(ls masktr-$thislevel-s*.nii.gz 2>/dev/null | wc -l)
+	    [ $available -ge $nselected ] && break
+	    waitsec=$[$nselected-$available]
+	    [ $waitsec -gt 8 ] && waitsec=8
+	    sleep $waitsec 
+	done
+	sleep 1
+	rm reg-jobs
+	else
+	wait
+    fi
 # Generate reference for atlas selection (fused from all)
     set -- $(ls masktr-$thislevel-s*)
     thissize=$#
@@ -377,8 +415,12 @@ for level in $(seq 0 $maxlevel) ; do
 	    echo $(evaluation emasked-$thislevel.nii.gz $srctr -Tp 0 -mask emargin-$thislevel-dil.nii.gz -linear | grep NMI | cut -d ' ' -f 2 )",$srcindex"
 	fi
     done | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
-    nselected=$[$thissize*$usepercent/100]
-    [ $nselected -lt 9 ] && nselected=7
+    if [[ $lpba40 = true ]] ; then 
+	nselected=${size[$level]}
+    else
+	nselected=$[$thissize*$usepercent/100]
+	[ $nselected -lt 9 ] && nselected=7
+    fi
     split -l $nselected ranking-$thislevel.csv
     mv xaa selection-$thislevel.csv
     [ -e xab ] && cat x?? > unselected-$thislevel.csv 
@@ -403,5 +445,10 @@ done
 
 convert tmask-$thislevel-sel.nii.gz output.nii.gz -char >>noisy.log 2>&1
 headertool output.nii.gz "$result" -origin $originalorigin
+
+if [ -n "$probresult" ] ; then
+    atlas prob.nii.gz $atlaslist >>noisy.log 2>&1
+    headertool prob.nii.gz "$probresult" -origin $originalorigin
+fi
 
 exit 0
