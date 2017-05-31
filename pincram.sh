@@ -160,7 +160,7 @@ reg () {
     echo "transformation "$msk" "$masktr" -linear -dofin "$dofout" -target "$tgt" >>"$ltd/log" 2>&1" >>$job 
     echo "transformation "$src" "$srctr" -linear -dofin "$dofout" -target "$tgt" >>"$ltd/log" 2>&1" >>$job 
     if [[ $level -ge $clusterthr && $par -eq 1 && $hpc -eq 0 ]] ; then
-	echo $(qsub -l walltime=$[900*$[$level+1]] $job) >>../reg-jobs
+	echo $(qsub -l mem=$[500*$[$level+1]*$[$level+2]+900]mb:walltime=$[900*$[$level+1]] $job) >>../reg-jobs
     else
 	if [ $hpc -eq 1 ] ; then
 	    . $job &
@@ -318,7 +318,7 @@ EOF
 [ -n "$queue" ] && queueline="PBS -q $queue"
 cat >pbscore <<EOF
 #!/bin/bash
-#PBS -l mem=1900mb,ncpus=1
+#PBS -l ncpus=1
 #PBS -j oe
 #$queueline
 . "$cdir"/common
@@ -382,13 +382,16 @@ for level in $(seq 0 $maxlevel) ; do
     echo
 # Wait for registration results
     if [ -e reg-jobs ] ; then
+	waitsec=60
 	while true ; do 
-	    qstat | grep -qwf reg-jobs || break ; 
+	    sleep $waitsec
 	    available=$(ls masktr-$thislevel-s*.nii.gz 2>/dev/null | wc -l)
-	    [ $available -ge $nselected ] && break
 	    waitsec=$[$nselected-$available]
-	    [ $waitsec -gt 8 ] && waitsec=8
-	    sleep $waitsec 
+	    [[ $waitsec -le 3 ]] && break
+	done
+	while true ; do
+	    sleep 30
+	    qstat | grep -qwf reg-jobs || break  
 	done
 	sleep 1
 	rm reg-jobs
@@ -398,6 +401,7 @@ for level in $(seq 0 $maxlevel) ; do
 # Generate reference for atlas selection (fused from all)
     set -- $(ls masktr-$thislevel-s*)
     thissize=$#
+    [[ $thissize -gt 3 ]] || fatal "Mask generation failed at level $thislevel" 
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-atlas.nii.gz
     seg_maths tmask-$thislevel-atlas.nii.gz -thr 0.$thisthr -bin tmask-$thislevel.nii.gz 
@@ -426,8 +430,9 @@ for level in $(seq 0 $maxlevel) ; do
     [ -e xab ] && cat x?? > unselected-$thislevel.csv 
     echo "Selected $nselected at $thislevel"
 # Build label from selection 
-    set -- $(head -n 19 selection-$thislevel.csv | while read -r item ; do echo masktr-$thislevel-s$item.nii.gz ; done)
+    set -- $(cat selection-$thislevel.csv | while read -r item ; do echo masktr-$thislevel-s$item.nii.gz ; done)
     thissize=$#
+    [[ $thissize -gt 3 ]] || fatal "Mask generation failed at level $thislevel" 
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-sel-atlas.nii.gz 
     seg_maths tmask-$thislevel-sel-atlas.nii.gz -thr 0.$thisthr -bin tmask-$thislevel-sel.nii.gz 
@@ -442,6 +447,8 @@ for level in $(seq 0 $maxlevel) ; do
     tgt="$PWD"/dmasked-$thislevel.nii.gz
     prevlevel=$thislevel
 done
+
+labelStats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -false
 
 convert tmask-$thislevel-sel.nii.gz output.nii.gz -char >>noisy.log 2>&1
 headertool output.nii.gz "$result" -origin $originalorigin
