@@ -1,5 +1,5 @@
 #!/bin/bash
-set -vx
+
 cdir=$(dirname "$0")
 . $cdir/common
 cdir=$(normalpath "$cdir")
@@ -13,11 +13,12 @@ usage () {
 echo
 echo "pincram version 0.2 "
 echo
-echo "Copyright (C) 2012 Rolf A. Heckemann "
+echo "Copyright (C) 2012-2015 Rolf A. Heckemann "
 echo "Web site: http://www.soundray.org/pincram "
 echo 
-echo "Usage: $0 <input> <options> <-result result.nii.gz> <-output temp_output_dir> [-atlas atlas_directory] \\ "
-echo "                       [-levels {2..5}] [-par max_parallel_jobs] [-ref ref.nii.gz] "
+echo "Usage: $0 <input> <options> <-result result.nii.gz> <-output temp_output_dir> \\ "
+echo "                       [-atlas atlas_directory | -atlas file.csv] \\ "
+echo "                       [-levels {1..3}] [-par max_parallel_jobs] [-ref ref.nii.gz] "
 echo 
 echo "<input>     : T1-weighted magnetic resonance image in gzipped NIfTI format."
 echo 
@@ -33,7 +34,11 @@ echo "              intermediate files will be discarded.  If not specified, the
 echo "              be copied to the directory of the result file."
 echo 
 echo "-atlas      : Atlas directory."
-echo "            : Has to contain limages/full/m{1..n}.nii.gz, lmasks/full/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz "
+echo "              Has to contain limages/full/m{1..n}.nii.gz, lmasks/full/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz "
+echo "              Alternatively, it can point to a csv spreadsheet: first line should be base directory for atlas "
+echo "              files. Entries should be relative to base directory. Each row refers to one atlas.  "
+echo "              Column 1: atlasname, column 2: full image, column 3: margin image, column 4: mask, column 5: transformation "
+echo "              (.dof format) for positional normalization. Atlasname should be unique across entries." 
 echo 
 echo "-tpn        : Rigid transformation for positional normalization of the target image (optional)"
 echo 
@@ -59,7 +64,7 @@ probresult=
 par=1
 ref=none
 exclude=0
-atlasdir=$(normalpath "$cdir"/atlas)
+atlas=$(normalpath "$cdir"/atlas)
 atlasn=0
 tdbase="$cdir"/temp
 outdir=notspecified
@@ -69,7 +74,7 @@ do
 	-tpn)               tpn=$(normalpath "$2"); shift;;
 	-result)         result=$(normalpath "$2"); shift;;
 	-probresult) probresult=$(normalpath "$2"); shift;;
-	-atlas)        atlasdir=$(normalpath "$2"); shift;;
+	-atlas)           atlas=$(normalpath "$2"); shift;;
 	-output)         outdir=$(normalpath "$2"); shift;;
 	-tempbase)       tdbase=$(normalpath "$2"); shift;;
 	-ref)               ref=$(normalpath "$2"); shift;;
@@ -91,13 +96,9 @@ done
 
 [ -n "$result" ] || fatal "Result filename not set"
 
-[ -e "$atlasdir" ] || "Atlas directory does not exist"
+[ -e "$atlas" ] || fatal "Atlas directory or file does not exist"
 
-[ "$outdir" = notspecified ] && outdir=$(basedir "$result")
-
-atlasmax=$(ls "$atlasdir"/lmasks/full/m*nii.gz | wc -l)
-[[ "$atlasn" =~ ^[0-9]+$ ]] || atlasn=$atlasmax
-[[ "$atlasn" -gt $atlasmax || "$atlasn" -eq 0 ]] && atlasn=$atlasmax
+[ "$outdir" = notspecified ] && outdir=$(basename "$result")
 
 ## Set levels to three unless set to 1 or 2 via -levels option
 [[ "$levels" =~ ^[1-2]$ ]] || levels=3
@@ -176,6 +177,19 @@ test -e "$tdbase" || mkdir -p "$tdbase"
 td=$(mktemp -d "$tdbase/$(basename $0)-c$exclude.XXXXXX") || fatal "Could not create temp dir in $tdbase"
 trap 'if [ -e "$outdir" ] ; then mv "$td" "$outdir"/ ; else rm -rf "$td" ; fi' 0 1 15 
 cd "$td" || fatal "Error: cannot cd to temp directory $td"
+
+if [[ -d "$atlas" ]] ; then
+    if [[ -e "$atlas"/atlases.csv ]] ; then 
+	atlas="$atlas"/atlases.csv
+    else
+	"$cdir"/atlas-csv-gen.sh "$atlas" atlases.csv
+	atlas=$PWD/atlases.csv
+    fi
+fi
+atlasbase=$(head -n 1 $atlas)
+atlasmax=$[$(cat $atlas | wc -l)-1]
+[[ "$atlasn" =~ ^[0-9]+$ ]] || atlasn=$atlasmax
+[[ "$atlasn" -gt $atlasmax || "$atlasn" -eq 0 ]] && atlasn=$atlasmax
 
 echo "$commandline" >commandline.log
 
@@ -333,7 +347,7 @@ dmaskdil[1]=3
 # Initialize first loop
 tgt="$PWD"/target-full.nii.gz
 prevlevel=init
-seq 1 $atlasn | grep -vw $exclude | grep -vw $[$exclude+30] >selection-$prevlevel.csv
+seq 1 $atlasn | grep -vw $exclude >selection-$prevlevel.csv
 nselected=$(cat selection-$prevlevel.csv | wc -l)
 usepercent=$(echo $nselected | awk '{ printf "%.0f", 100*(8/$1)^(1/3) } ')
 
@@ -343,15 +357,19 @@ for level in $(seq 0 $maxlevel) ; do
 # Registration
     echo "Level $thislevel"
     for srcindex in $(cat selection-$prevlevel.csv) ; do
-	sourcenii=m$srcindex.nii.gz
-	src="$atlasdir"/limages/full/$sourcenii
-	[ $level -ge 2 ] && src="$atlasdir"/limages/margin-d5/$sourcenii
+
+	set -- $(head -n $[$srcindex+1] $atlas | tail -n 1 | tr ',' ' ')
+	atlasname=$1 ; shift
+	src=$atlasbase/$1 ; shift
+	[ $level -ge 2 ] && src=$atlasbase/$1 ; shift
+	msk=$atlasbase/$1 ; shift
+	spn=$atlasbase/$1 ; shift
+
 	srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
-	msk="$atlasdir"/lmasks/full/$sourcenii
 	masktr="$PWD"/masktr-$thislevel-s$srcindex.nii.gz
 	dofin="$PWD"/reg-s$srcindex-$prevlevel.dof.gz 
 	dofout="$PWD"/reg-s$srcindex-$thislevel.dof.gz
-	spn="$atlasdir"/posnorm/m$srcindex.dof.gz
+
 	reg "$tgt" "$src" "$srctr" "$msk" "$masktr" "$dofin" "$dofout" "$spn" "$tpn" $level
 	echo -n .
 	while true ; do cleartospawn && break ; sleep 8 ; done
