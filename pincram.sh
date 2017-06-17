@@ -16,7 +16,7 @@ pincram version 0.2
 Copyright (C) 2012-2015 Rolf A. Heckemann 
 Web site: http://www.soundray.org/pincram 
 
-Usage: $0 <input> <options> <-result result.nii.gz> \\ 
+Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz \\ 
                        [-probresult probresult.nii.gz] \\ 
                        [-workdir working_directory] [-savewd] \\ 
                        [-atlas atlas_directory | -atlas file.csv] [-atlasn N ] \\ 
@@ -26,9 +26,7 @@ Usage: $0 <input> <options> <-result result.nii.gz> \\
 
 -result     : Name of file to receive output brain label. The output is a binary label image.
 
--altout     : Name of file to receive alternative output label.  The output is a binary image
-
--marginout  : Name of file to receive output margin label. The output is a binary margin mask.
+-altresult  : Name of file to receive alternative output label.  The output is a binary label image.
 
 -probresult : (Optional) name of file to receive output, a probabilistic label image.
 
@@ -64,7 +62,7 @@ test -e $tgt || fatal "No image found -- $t"
 
 tpn="$cdir"/neutral.dof.gz
 result=
-altout=
+altresult=
 probresult=
 par=1
 ref=none
@@ -77,7 +75,7 @@ do
     case "$1" in
 	-tpn)               tpn=$(normalpath "$2"); shift;;
 	-result)         result=$(normalpath "$2"); shift;;
-	-altout)         altout=$(normalpath "$2"); shift;;
+	-altresult)   altresult=$(normalpath "$2"); shift;;
 	-probresult) probresult=$(normalpath "$2"); shift;;
 	-atlas)           atlas=$(normalpath "$2"); shift;;
 	-workdir)       workdir=$(normalpath "$2"); shift;;
@@ -85,10 +83,7 @@ do
 	-savewd)         savewd=1 ;;
 	-atlasn)         atlasn="$2"; shift;;
 	-levels)         levels="$2"; shift;;
-	-excludeatlas)  exclude="$2"; shift;;
 	-par)               par="$2"; shift;;
-	-queue)           queue="$2"; shift;;
-	-clusterthr) clusterthr="$2"; shift;;
 	--) shift; break;;
         -*)
             usage;;
@@ -107,14 +102,7 @@ done
 [[ "$levels" =~ ^[1-2]$ ]] || levels=3
 maxlevel=$[$levels-1]
 
-[[ "$exclude" =~ ^[0-9]+$ ]] || exclude=0
-
 [[ "$par" =~ ^[0-9]+$ ]] || par=1
-
-[[ $queue =~ ^[[:alpha:]]+$ ]] || queue=
-
-# Do not spawn on cluster unless clusterthr is set to 0, 1, or 2
-[[ $clusterthr =~ ^[0-2]$ ]] || clusterthr=$levels 
 
 . "$cdir"/pincram.rc
 
@@ -122,14 +110,6 @@ echo "Extracting $tgt"
 echo "Writing brain label to $result"
 
 # Functions
-
-cleartospawn() { 
-    local jobcount=$(jobs -r | grep -c .)
-    if [ $jobcount -lt $par ] ; then
-        return 0
-    fi
-    return 1
-}
 
 assess() {
     local glabels="$1"
@@ -186,7 +166,7 @@ mrgmaskdil[2]=8
 tgt="$PWD"/target-full.nii.gz
 level=0
 prevlevel=init
-seq 1 $atlasn | grep -vw $exclude >selection-$prevlevel.csv
+seq 1 $atlasn >selection-$prevlevel.csv
 nselected=$(cat selection-$prevlevel.csv | wc -l)
 usepercent=$(echo $nselected | awk '{ printf "%.0f", 100*(8/$1)^(1/3) } ')
 
@@ -228,6 +208,8 @@ for level in $(seq 0 $maxlevel) ; do
     sleep $sleeptime
     until [[ $masksready -ge $minready ]]
     do 
+	(( loopcount += 1 ))
+	[[ loopcount -gt 500 ]] && fatal "Waited too long for registration results"
 	prevmasksread=$masksready
 	set -- masktr-$thislevel-s* 
 	masksready=$#
@@ -243,7 +225,7 @@ for level in $(seq 0 $maxlevel) ; do
     done
     set -- masktr-$thislevel-s*
     thissize=$#
-    [[ $thissize -gt 3 ]] || fatal "Mask generation failed at level $thislevel" 
+    [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel" 
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-atlas.nii.gz
 # Generate target margin mask for similarity ranking and apply 
@@ -256,10 +238,10 @@ for level in $(seq 0 $maxlevel) ; do
     assess tmask-$thislevel.nii.gz
 # Selection
     echo "Selecting"
-    for srcindex in $(cat selection-init.csv) ; do
+    for srcindex in $(cat selection-$prevlevel.csv) ; do
 	srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
 	if [[ -e $srctr ]] && [[ ! -z $srctr ]] ; then
-	    echo $(evaluation emasked-$thislevel.nii.gz $srctr -Tp 0 -mask emargin-$thislevel-dil.nii.gz -linear | grep NMI | cut -d ' ' -f 2 )",$srcindex"
+	    echo $(evaluation emasked-$thislevel.nii.gz $srctr -Tp 0 -mask emargin-$thislevel-dil.nii.gz | grep NMI | cut -d ' ' -f 2 )",$srcindex"
 	fi
     done | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
     nselected=$[$thissize*$usepercent/100]
@@ -272,7 +254,7 @@ for level in $(seq 0 $maxlevel) ; do
     set -- $(cat selection-$thislevel.csv | while read -r item ; do echo masktr-$thislevel-s$item.nii.gz ; done)
      #TODO: check for missing masktr-*
     thissize=$#
-    [[ $thissize -gt 3 ]] || fatal "Mask generation failed at level $thislevel" 
+    [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel" 
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-sel-atlas.nii.gz 
     seg_maths tmask-$thislevel-sel-atlas.nii.gz -thr 0.$thisthr -bin tmask-$thislevel-sel.nii.gz 
@@ -301,11 +283,10 @@ seg_maths alt-$thislevel-sel.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask
 convert andmask.nii.gz output.nii.gz -uchar >>noisy.log 2>&1
 convert ormask.nii.gz altoutput.nii.gz -uchar >>noisy.log 2>&1
 headertool output.nii.gz "$result" -origin $originalorigin
-headertool altoutput.nii.gz "$altout" -origin $originalorigin
+headertool altoutput.nii.gz "$altresult" -origin $originalorigin
 
 if [ -n "$probresult" ] ; then
-    atlas prob.nii.gz $atlaslist >>noisy.log 2>&1
-    headertool prob.nii.gz "$probresult" -origin $originalorigin
+    headertool tmask-$thislevel-sel-atlas.nii.gz "$probresult" -origin $originalorigin
 fi
 
 exit 0

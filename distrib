@@ -52,7 +52,6 @@ case $arch in
 	pbsjob=$(qsub -J 1-$n -l walltime=00:$tmin:00 -j oe $script)
 	;;
     bash)
-	echo $PATH | grep -qi pbs && fatal "PBS available -- refusing to process with bash"
 	cat $datalist | parallel -j $jobs $script
 	;;
     *)

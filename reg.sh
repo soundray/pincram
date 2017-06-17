@@ -35,7 +35,7 @@ set -e   # Terminate script at first error
 idx=$PBS_ARRAY_INDEX
 if [[ -z $idx ]] ; then idx=$PARALLEL_SEQ ; fi
 
-wd=$PBS_O_WORKDIR
+wd=$PINCRAM_WORKDIR
 if [[ -z $wd ]] ; then wd=$PWD ; fi
 
 if [[ $ARCH == "bash" ]]
@@ -112,6 +112,7 @@ Maximum length of steps           = 2
 
 EOF
 
+echo dofcombine "$spn" "$tpn" pre.dof.gz -invert2
 dofcombine "$spn" "$tpn" pre.dof.gz -invert2
 echo rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg
 rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg >reg0-$idx.log 2>&1
