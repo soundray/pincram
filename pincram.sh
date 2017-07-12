@@ -201,8 +201,8 @@ for level in $(seq 0 $maxlevel) ; do
 
     loopcount=0
     masksready=0
-    # minready=$[$nselected*96/100] # Speedup at the cost of reproducibility
-    minready=$nselected
+    minready=$[$nselected*90/100] # Speedup at the cost of reproducibility. Comment out next line.
+    # minready=$nselected
     echo -en "$masksready of $nselected calculated     "
     sleeptime=$[$level*5+5]
     sleep $sleeptime
@@ -211,12 +211,13 @@ for level in $(seq 0 $maxlevel) ; do
 	(( loopcount += 1 ))
 	[[ loopcount -gt 500 ]] && fatal "Waited too long for registration results"
 	prevmasksread=$masksready
-	set -- masktr-$thislevel-s* 
-	masksready=$#
-	echo -en "$masksready of $nselected calculated     " | tee -a noisy.log
+	masksready=$( ls masktr-$thislevel-s* 2>/dev/null | wc -l )
+	[[ $masksready -eq 1 ]] && masksready=0
+	echo -en \\b"$masksready of $nselected calculated     " | tee -a noisy.log
 	sleep $sleeptime
     done
     echo
+    [[ $masksready -lt $nselected ]] && sleep 30  # Extra sleep if we're going on an incomplete mask set
 
 # Generate reference for atlas selection (fused from all)
     echo "Building reference atlas for selection at level $thislevel"
