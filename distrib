@@ -7,6 +7,7 @@ cdir=$(normalpath "$cdir")
 pn=$0
 prog=$(basename "$pn")
 comline="$cdir/$prog $*"
+echo $comline
 
 # parameters
 datalist=
@@ -46,10 +47,12 @@ case $arch in
 	;;
     pbs)
 	cd $PINCRAM_WORKDIR
-	levelplus=$[$level+3]
-	tmin=$[$level*$levelplus+$levelplus+$levelplus]
-	n=$(cat $datalist | wc -l)
-	pbsjob=$(qsub -J 1-$n -l walltime=00:$tmin:00 -j oe $script)
+	levelplus=$[$level+4]
+	tsec=$[$levelplus**3*60]
+	atlasn=$(cat $datalist | wc -l)
+	chunkn=$[$[$level-3]**2]
+	jobn=$[$atlasn / $chunkn + 1]
+	pbsjob=$(qsub -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe $script)
 	;;
     bash)
 	echo $PATH | grep -qi pbs && fatal "PBS available -- refusing to process with bash"

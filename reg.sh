@@ -1,6 +1,7 @@
 #!/bin/bash
 
 #PBS -l select=1:ncpus=1:mem=7900mb
+#PBS -l place=free:shared
 
 pn=$(basename $0)
 commandline="$pn $*"
@@ -38,39 +39,43 @@ if [[ -z $idx ]] ; then idx=$PARALLEL_SEQ ; fi
 wd=$PBS_O_WORKDIR
 if [[ -z $wd ]] ; then wd=$PWD ; fi
 
-if [[ $ARCH == "bash" ]]
-then
-    td=$(tempdir)
-    cd $td
-fi
+td=$(tempdir)
+cd $td
 
-set -- $(head -n $idx $wd/job.conf | tail -n 1)
+level=$(head -n 1 $wd/job.conf | tr '-' '\n' | grep lev | cut -d ' ' -f 2)
+chunkn=$[$[$level-3]**2]
+split -l $chunkn -d --verbose $wd/job.conf
+idx0=$(printf '%02g' $[$idx-1])
 
-while [ $# -gt 0 ]
+cat x$idx0 | while read params
 do
-    case "$1" in
-	-tgt)               tgt=$(normalpath "$2"); shift;;
-	-src)               src=$(normalpath "$2"); shift;;
-	-srctr)           srctr=$(normalpath "$2"); shift;;
-	-msk)               msk=$(normalpath "$2"); shift;;
-	-masktr)         masktr=$(normalpath "$2"); shift;;
-	-alt)               alt=$(normalpath "$2"); shift;;
-	-alttr)           alttr=$(normalpath "$2"); shift;;
-	-dofin)           dofin=$(normalpath "$2"); shift;;
-	-dofout)         dofout=$(normalpath "$2"); shift;;
-	-spn)               spn=$(normalpath "$2"); shift;;
-	-tpn)               tpn=$(normalpath "$2"); shift;;
-	-lev)               lev="$2"; shift;;
-	--) shift; break;;
-        -*)
-            fatal "Parameter error" ;;
-	*)  break;;
-    esac
-    shift
-done
+    set -- $(echo $params)
 
-if [[ $lev == 0 ]] ; then
-    cat >lev0.reg << EOF
+    while [ $# -gt 0 ]
+    do
+	case "$1" in
+	    -tgt)               tgt=$(normalpath "$2"); shift;;
+	    -src)               src=$(normalpath "$2"); shift;;
+	    -srctr)           srctr=$(normalpath "$2"); shift;;
+	    -msk)               msk=$(normalpath "$2"); shift;;
+	    -masktr)         masktr=$(normalpath "$2"); shift;;
+	    -alt)               alt=$(normalpath "$2"); shift;;
+	    -alttr)           alttr=$(normalpath "$2"); shift;;
+	    -dofin)           dofin=$(normalpath "$2"); shift;;
+	    -dofout)         dofout=$(normalpath "$2"); shift;;
+	    -spn)               spn=$(normalpath "$2"); shift;;
+	    -tpn)               tpn=$(normalpath "$2"); shift;;
+	    -lev)               lev="$2"; shift;;
+	    --) shift; break;;
+            -*)
+		fatal "Parameter error" ;;
+	    *)  break;;
+	esac
+	shift
+    done
+    
+    if [[ $lev == 0 ]] ; then
+	cat >lev0.reg << EOF
 
 #
 # Registration parameters
@@ -112,15 +117,14 @@ Maximum length of steps           = 2
 
 EOF
 
-dofcombine "$spn" "$tpn" pre.dof.gz -invert2
-echo rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg
-rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg >reg0-$idx.log 2>&1
-cp reg0-$idx.log $(dirname $dofout) 
-fi
-
-if [[ $lev == 1 ]] ; then
+	dofcombine "$spn" "$tpn" pre.dof.gz -invert2
+	echo rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg 
+	rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg 
+    fi
     
-    cat >lev1.reg << EOF
+    if [[ $lev == 1 ]] ; then
+	
+	cat >lev1.reg << EOF
 
 #
 # Registration parameters
@@ -162,13 +166,12 @@ Maximum length of steps           = 1
 
 EOF
 
-echo areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
-areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg >reg1-$idx.log 2>&1
-cp reg1-$idx.log $(dirname $dofout) 
-fi
-
-if [[ $lev == 2 ]] ; then
-cat >lev2.reg << EOF
+	echo areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
+	areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
+    fi
+    
+    if [[ $lev == 2 ]] ; then
+	cat >lev2.reg << EOF
 
 #
 # Non-rigid registration parameters
@@ -210,16 +213,15 @@ Maximum length of steps           = 2
 
 EOF
 
-echo nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg
-nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg >reg2-$idx.log 2>&1
-cp reg2-$idx.log $(dirname $dofout) 
-fi
+	echo nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
+	nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
+    fi
 
-transformation "$msk" masktr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
-transformation "$src" srctr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
-transformation "$alt" alttr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
-cp masktr.nii.gz "$masktr"
-cp srctr.nii.gz "$srctr"   
-cp alttr.nii.gz "$alttr"   
-cp dofout.dof.gz "$dofout"
-sleep 1
+    transformation "$msk" masktr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
+    transformation "$src" srctr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
+    transformation "$alt" alttr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
+    cp masktr.nii.gz "$masktr"
+    cp srctr.nii.gz "$srctr"   
+    cp alttr.nii.gz "$alttr"   
+    cp dofout.dof.gz "$dofout"
+done

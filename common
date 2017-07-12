@@ -1,5 +1,20 @@
 #!/bin/bash
 
+PATH=/home/rh17/software/irtk/bin:$PATH
+
+PATH=/home/rh17/software/niftyreg/build/reg-apps:$PATH
+
+PATH=/home/rh17/software/niftyseg/bin:$PATH
+
+PATH=/home/rh17/software/slicer/Slicer-4.6.2-linux-amd64/lib/Slicer-4.6/cli-modules:$PATH
+LD_LIBRARY_PATH=/home/rh17/software/slicer/Slicer-4.6.2-linux-amd64/lib/Slicer-4.6/cli-modules:/home/rh17/software/slicer/Slicer-4.6.2-linux-amd64/lib/Slicer-4.6
+
+FSLDIR=/home/rh17/software/fsl/build/fsl
+. $FSLDIR/etc/fslconf/fsl.sh
+PATH=$FSLDIR/bin:$PATH
+
+export FSLDIR PATH LD_LIBRARY_PATH
+
 msg () {
     for msgline
     do echo "$pn: $msgline" >&2
@@ -12,27 +27,30 @@ log () {
     done
 }
 
-fatal () { msg "$@"; exit 1; }
+fatal () { msg "$@" ; exit 1 ; }
 
 tempdir () {
     : ${TMPDIR:="/tmp"}
     tdbase=$TMPDIR/$USER
     test -e $tdbase || mkdir -p $tdbase
     td=$(mktemp -d $tdbase/$(basename $0).XXXXXX) || fatal "Could not create temp dir in $tdbase"
-    echo $td
+    echo "$td"
 }
 
 normalpath () {
     local s=$1
+    local filetype dir bas ret
     [[ $s == ${s::400} ]] || fatal "Option path too long"
     [[ $s == ${s//[^[:print:]]/} ]] || fatal "Non-printables in path"
-    dir=$(dirname "$1")
-    bas=$(basename "$1")
-    echo $(cd $dir && pwd)/$bas
+    [[ -e $s ]] && filetype=$(file $s)
+    if [[ $filetype == "directory" ]]
+        then ret=$(cd $s && pwd)
+        else
+        dir=$(dirname "$s")
+        bas=$(basename "$s")
+        ret=$(cd $dir && pwd)/$bas
+    fi
+    echo $ret
 }
-
-export ARCH=pbs
-
-export PATH=~/software/niftyseg/build/seg-apps:$PATH
 
 set -e   # Terminate script at first error
