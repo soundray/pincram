@@ -36,7 +36,7 @@ set -e   # Terminate script at first error
 idx=$PBS_ARRAY_INDEX
 if [[ -z $idx ]] ; then idx=$PARALLEL_SEQ ; fi
 
-wd=$PINCRAM_WORKDIR
+wd=$PBS_O_WORKDIR
 if [[ -z $wd ]] ; then wd=$PWD ; fi
 
 td=$(tempdir)

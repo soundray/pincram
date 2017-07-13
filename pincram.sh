@@ -157,11 +157,6 @@ levelname[3]="none"
 dmaskdil[0]=3
 dmaskdil[1]=3
 
-mrgmaskdil[0]=19
-mrgmaskdil[1]=12
-mrgmaskdil[2]=8
-
-
 # Initialize first loop
 tgt="$PWD"/target-full.nii.gz
 level=0

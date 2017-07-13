@@ -59,6 +59,6 @@ case $arch in
 	;;
     *)
 	fatal "$arch not implemented"
-esac	  
+esac
 
 exit 0
