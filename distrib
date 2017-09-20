@@ -52,7 +52,7 @@ case $arch in
 	atlasn=$(cat $datalist | wc -l)
 	chunkn=$[$[$level-3]**2]
 	jobn=$[$atlasn / $chunkn + 1]
-	pbsjob=$(qsub -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe $script)
+	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe $script)
 	;;
     bash)
 	cat $datalist | parallel -j $jobs $script
