@@ -1,0 +1,63 @@
+#!/bin/bash
+
+### For new installation: adapt paths to dependencies
+
+PATH=/***PATH/TO***/niftyreg/bin:$PATH
+
+PATH=/***PATH/TO***/niftyseg/bin:$PATH
+
+slicer_modules=Slicer-4.6.2-linux-amd64/lib/Slicer-4.6/cli-modules
+PATH=/**PATH/TO***/slicer/$slicer_modules:$PATH
+
+LD_LIBRARY_PATH=/***PATH/TO/slicer/$slicer_modules:/***PATH/TO***/slicer/$slicer_modules/..:$LD_LIBRARY_PATH
+
+
+### FSL -- own installation (no package)
+FSLDIR=/***PATH/TO***/fsl/build/fsl
+. $FSLDIR/etc/fslconf/fsl.sh
+PATH=$FSLDIR/bin:$PATH
+export FSLDIR 
+
+### FSL -- installation from .deb package
+. /etc/fsl/fsl.sh
+
+export PATH LD_LIBRARY_PATH
+
+
+# Functions etc. -- no adjustments normally necessary below this line
+
+msg () {
+    for msgline
+    do echo "$pn: $msgline" >&2
+    done
+}
+
+fatal () { msg "$@" ; exit 1 ; }
+
+tempdir () {
+    : ${TMPDIR:="/tmp"}
+    tdbase=$TMPDIR/$USER
+    test -e $tdbase || mkdir -p $tdbase
+    td=$(mktemp -d $tdbase/$(basename $0).XXXXXX) || fatal "Could not create temp dir in $tdbase"
+    echo "$td"
+}
+
+normalpath () {
+    local s=$1
+    local filetype dir bas ret
+    [[ $s == ${s::400} ]] || fatal "Option path too long"
+    [[ $s == ${s//[^[:print:]]/} ]] || fatal "Non-printables in path"
+    [[ -e $s ]] && filetype=$(file $s) 
+    if [[ $filetype == "directory" ]] 
+	then ret=$(cd $s && pwd)
+	else 
+	dir=$(dirname "$s")
+	bas=$(basename "$s")
+	ret=$(cd $dir && pwd)/$bas
+    fi
+    echo $ret
+}
+
+set -e   # Terminate script at first error
+
+
