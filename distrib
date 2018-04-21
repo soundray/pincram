@@ -55,6 +55,7 @@ case $arch in
 	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe $script)
 	;;
     bash)
+	[[ $jobs == "100%" ]] && jobs=$(nproc --all)
 	cat $datalist | parallel -j $jobs $script
 	;;
     *)

@@ -33,17 +33,24 @@ tempdir () {
 
 set -e   # Terminate script at first error
 
-idx=$PBS_ARRAY_INDEX
-if [[ -z $idx ]] ; then idx=$PARALLEL_SEQ ; fi
-
-wd=$PBS_O_WORKDIR
-if [[ -z $wd ]] ; then wd=$PWD ; fi
+case $ARCH in
+    bash)
+	idx=$PARALLEL_SEQ
+	wd=$PWD
+	chunkn=1
+	;;
+    pbs)
+	idx=$PBS_ARRAY_INDEX
+	wd=$PBS_O_WORKDIR
+	chunkn=$[$[$level-3]**2]
+	;;
+esac
 
 td=$(tempdir)
 cd $td
 
 level=$(head -n 1 $wd/job.conf | tr '-' '\n' | grep lev | cut -d ' ' -f 2)
-chunkn=$[$[$level-3]**2]
+
 split -l $chunkn -d --verbose $wd/job.conf
 idx0=$(printf '%02g' $[$idx-1])
 
