@@ -205,8 +205,9 @@ for level in $(seq 0 $maxlevel) ; do
     do 
 	(( loopcount += 1 ))
 	[[ loopcount -gt 500 ]] && fatal "Waited too long for registration results"
-	prevmasksread=$masksready
+	prevmasksready=$masksready
 	masksready=$( ls masktr-$thislevel-s* 2>/dev/null | wc -l )
+	[[ $masksready -gt $prevmasksready ]] && loopcount=0
 	[[ $masksready -eq 1 ]] && masksready=0
 	echo -en \\b"$masksready of $nselected calculated     " | tee -a noisy.log
 	sleep $sleeptime
