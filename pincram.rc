@@ -4,8 +4,3 @@ thr[0]=56
 thr[1]=60
 thr[2]=60
 
-# Parallelization architecture / middleware
-# ARCH=bash
-# ARCH=ge
-ARCH=pbs
-export ARCH

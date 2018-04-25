@@ -23,6 +23,11 @@ export FSLDIR
 
 export PATH LD_LIBRARY_PATH
 
+# Parallelization architecture / middleware
+# ARCH=bash
+# ARCH=ge
+ARCH=pbs
+export ARCH
 
 # Functions etc. -- no adjustments normally necessary below this line
 
