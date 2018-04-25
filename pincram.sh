@@ -26,6 +26,11 @@ Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz 
 
 -result     : Name of file to receive output brain label. The output is a binary label image.
 
+-nonselres  : Name of file to receive output brain label. The output is a binary label image, based on 
+              previous-to-last processing step, ie. fused label before selection.  Occasionally, this
+              can be of better quality than the final label (saved with -result), in particular if the 
+              latter has implausible holes.
+
 -altresult  : Name of file to receive alternative output label.  The output is a binary label image.
 
 -probresult : (Optional) name of file to receive output, a probabilistic label image.
@@ -62,6 +67,7 @@ test -e $tgt || fatal "No image found -- $t"
 
 tpn="$cdir"/neutral.dof.gz
 result=
+nonselres=
 altresult=
 probresult=
 par=1
@@ -75,6 +81,7 @@ do
     case "$1" in
 	-tpn)               tpn=$(normalpath "$2"); shift;;
 	-result)         result=$(normalpath "$2"); shift;;
+	-nonselres)   nonselres=$(normalpath "$2"); shift;;
 	-altresult)   altresult=$(normalpath "$2"); shift;;
 	-probresult) probresult=$(normalpath "$2"); shift;;
 	-atlas)           atlas=$(normalpath "$2"); shift;;
@@ -284,6 +291,10 @@ headertool altoutput.nii.gz "$altresult" -origin $originalorigin
 
 if [ -n "$probresult" ] ; then
     headertool tmask-$thislevel-sel-atlas.nii.gz "$probresult" -origin $originalorigin
+fi
+
+if [ -n "$nonselres" ] ; then
+    headertool tmask-$thislevel.nii.gz "$nonselres" -origin $originalorigin
 fi
 
 exit 0
