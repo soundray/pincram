@@ -55,7 +55,7 @@ case $arch in
 	atlasn=$(cat $datalist | wc -l)
 	chunkn=$[$[$level-3]**2]
 	jobn=$[$atlasn / $chunkn + 1]
-	LEVEL=$level
+	export LEVEL=$level
 	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe $script)
 	;;
     bash)
