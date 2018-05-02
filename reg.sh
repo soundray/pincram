@@ -34,6 +34,7 @@ tempdir () {
 set -e   # Terminate script at first error
 
 level=$LEVEL
+echo LEVEL: $LEVEL >&2
 
 case $ARCH in
     bash)
