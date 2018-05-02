@@ -33,6 +33,8 @@ tempdir () {
 
 set -e   # Terminate script at first error
 
+level=$LEVEL
+
 case $ARCH in
     bash)
 	idx=$PARALLEL_SEQ
@@ -48,8 +50,6 @@ esac
 
 td=$(tempdir)
 cd $td
-
-level=$(head -n 1 $wd/job.conf | tr '-' '\n' | grep lev | cut -d ' ' -f 2)
 
 split -l $chunkn -d --verbose $wd/job.conf
 idx0=$(printf '%02g' $[$idx-1])
