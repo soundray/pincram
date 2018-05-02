@@ -56,7 +56,7 @@ case $arch in
 	chunkn=$[$[$level-3]**2]
 	jobn=$[$atlasn / $chunkn + 1]
 	export LEVEL=$level ARCH=$arch
-	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe $script)
+	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe -N reg${level}n$chunkn $script)
 	;;
     bash)
 	[[ $jobs == "100%" ]] && jobs=$(nproc --all)
