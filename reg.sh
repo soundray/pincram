@@ -81,8 +81,29 @@ do
 	esac
 	shift
     done
-    
+
     if [[ $lev == 0 ]] ; then
+	invert-dof "$tpn" tpninv.dof
+	compose-dofs "$spn" tpninv.dof pre.dof
+	register $tgt $src -model Rigid -dofin pre.dof -dofout dofout.dof
+    fi
+    if [[ $lev == 1 ]] ; then
+	register "$tgt" "$src" -model Affine -dofin "$dofin" -dofout dofout.dof 
+    fi
+    if [[ $lev == 2 ]] ; then
+	register "$tgt" "$src" -model FFD -dofin "$dofin" -dofout dofout.dof 
+    fi
+
+    transform-image "$msk" masktr.nii.gz -interp "Linear" -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
+    transform-image "$src" srctr.nii.gz -interp "Linear"  -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
+    transform-image "$alt" alttr.nii.gz -interp "Linear"  -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
+    cp masktr.nii.gz "$masktr"
+    cp srctr.nii.gz "$srctr"   
+    cp alttr.nii.gz "$alttr"   
+    cp dofout.dof.gz "$dofout"
+done
+exit 0
+    
 	cat >lev0.reg << EOF
 
 #
