@@ -94,12 +94,13 @@ do
 	register "$tgt" "$src" -model FFD -dofin "$dofin" -dofout dofout.dof 
     fi
 
-    transform-image "$msk" masktr.nii.gz -interp "Linear" -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
-    transform-image "$src" srctr.nii.gz -interp "Linear"  -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
-    transform-image "$alt" alttr.nii.gz -interp "Linear"  -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
+    transform-image "$msk" masktr.nii.gz -interp "Linear" -dofin dofout.dof -target "$tgt" || fatal "Failure at masktr"
+    transform-image "$src" srctr.nii.gz -interp "Linear"  -dofin dofout.dof -target "$tgt"  || fatal "Failure at srctr"
+    transform-image "$alt" alttr.nii.gz -interp "Linear"  -dofin dofout.dof -target "$tgt"  || fatal "Failure at alttr"
     cp masktr.nii.gz "$masktr"
     cp srctr.nii.gz "$srctr"   
     cp alttr.nii.gz "$alttr"   
+    gzip dofout.dof
     cp dofout.dof.gz "$dofout"
 done
 exit 0

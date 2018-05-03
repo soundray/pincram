@@ -44,6 +44,7 @@ level=$ilevel
 [[ -e $datalist ]] || fatal "Data list $datalist not found"
 datalist=$(normalpath $datalist)
 
+export LEVEL=$level ARCH=$arch
 case $arch in
     ge)
 	fatal "$arch not implemented"
@@ -55,7 +56,6 @@ case $arch in
 	atlasn=$(cat $datalist | wc -l)
 	chunkn=$[$[$level-3]**2]
 	jobn=$[$atlasn / $chunkn + 1]
-	export LEVEL=$level ARCH=$arch
 	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe -N reg${level}n$chunkn $script)
 	;;
     bash)
