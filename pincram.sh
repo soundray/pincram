@@ -11,9 +11,7 @@ commandline="$pn $*"
 # Parameter handling
 usage () { 
 cat <<EOF
-pincram version 0.2 
-
-Copyright (C) 2012-2015 Rolf A. Heckemann 
+Copyright (C) 2012-2018 Rolf A. Heckemann 
 Web site: http://www.soundray.org/pincram 
 
 Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz \\ 
