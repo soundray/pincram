@@ -125,6 +125,11 @@ assess() {
     return 0
 }
 
+origin() {
+    img="$1" ; shift
+    info $img | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6 
+}
+
 # Core working directory
 mkdir -p "$workdir"
 td=$(mktemp -d "$workdir/$(basename $0)-c$exclude.XXXXXX") || fatal "Could not create working directory in $workdir"
@@ -148,7 +153,7 @@ atlasmax=$[$(cat $atlas | wc -l)-1]
 echo "$commandline" >commandline.log
 
 # Target preparation
-originalorigin=$(info "$tgt" | grep ^Image.origin | cut -d ' ' -f 4-6)
+originalorigin=$(origin "$tgt")
 headertool "$tgt" target-full.nii.gz -origin 0 0 0
 convert "$tgt" target-full.nii.gz -float
 [ -e "$ref" ] && cp "$ref" ref.nii.gz && chmod +w ref.nii.gz
