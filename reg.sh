@@ -52,10 +52,12 @@ esac
 td=$(tempdir)
 cd $td
 
-split -l $chunkn -d --verbose $wd/job.conf
-idx0=$(printf '%02g' $[$idx-1])
+split -a 4 -l $chunkn -d $wd/job.conf
+idx0=$(printf '%04g' $[$idx-1])
+cp x$idx0 thischunk
+rm x????
 
-cat x$idx0 | while read params
+cat thischunk | while read params
 do
     set -- $(echo $params)
 
@@ -82,31 +84,32 @@ do
 	shift
     done
 
-    if [[ $lev == 0 ]] ; then
-	invert-dof "$tpn" tpninv.dof
-	compose-dofs "$spn" tpninv.dof pre.dof
-	register $tgt $src -model Rigid -dofin pre.dof -dofout dofout.dof
-    fi
-    if [[ $lev == 1 ]] ; then
-	register "$tgt" "$src" -model Affine -dofin "$dofin" -dofout dofout.dof 
-    fi
-    if [[ $lev == 2 ]] ; then
-	register "$tgt" "$src" -model FFD -dofin "$dofin" -dofout dofout.dof 
-    fi
+    if [[ -n $PINCRAM_USE_MIRTK ]] ; then
+	if [[ $lev == 0 ]] ; then
+	    invert-dof "$tpn" tpninv.dof
+	    compose-dofs "$spn" tpninv.dof pre.dof
+	    register $tgt $src -model Rigid -dofin pre.dof -dofout dofout.dof
+	fi
+	if [[ $lev == 1 ]] ; then
+	    register "$tgt" "$src" -model Affine -dofin "$dofin" -dofout dofout.dof 
+	fi
+	if [[ $lev == 2 ]] ; then
+	    register "$tgt" "$src" -model FFD -dofin "$dofin" -dofout dofout.dof 
+	fi
 
-    transform-image "$msk" masktr.nii.gz -interp "Linear" -dofin dofout.dof -target "$tgt" || fatal "Failure at masktr"
-    transform-image "$src" srctr.nii.gz -interp "Linear"  -dofin dofout.dof -target "$tgt"  || fatal "Failure at srctr"
-    transform-image "$alt" alttr.nii.gz -interp "Linear"  -dofin dofout.dof -target "$tgt"  || fatal "Failure at alttr"
-    cp masktr.nii.gz "$masktr"
-    cp srctr.nii.gz "$srctr"   
-    cp alttr.nii.gz "$alttr"   
-    gzip dofout.dof
-    cp dofout.dof.gz "$dofout"
-done
-exit 0
+	transform-image "$msk" masktr.nii.gz -interp "Linear" -dofin dofout.dof -target "$tgt" || fatal "Failure at masktr"
+	transform-image "$src" srctr.nii.gz -interp "Linear"  -dofin dofout.dof -target "$tgt"  || fatal "Failure at srctr"
+	transform-image "$alt" alttr.nii.gz -interp "Linear"  -dofin dofout.dof -target "$tgt"  || fatal "Failure at alttr"
+	cp masktr.nii.gz "$masktr"
+	cp srctr.nii.gz "$srctr"   
+	cp alttr.nii.gz "$alttr"   
+	gzip dofout.dof
+	cp dofout.dof.gz "$dofout"
+	exit 0
+    fi
     
+    if [[ $lev == 0 ]] ; then
 	cat >lev0.reg << EOF
-
 #
 # Registration parameters
 #
