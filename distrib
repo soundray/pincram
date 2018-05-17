@@ -44,7 +44,7 @@ level=$ilevel
 [[ -e $datalist ]] || fatal "Data list $datalist not found"
 datalist=$(normalpath $datalist)
 
-export LEVEL=$level ARCH=$arch
+export LEVEL=$level ARCHITECTURE=$arch
 case $arch in
     ge)
 	fatal "$arch not implemented"

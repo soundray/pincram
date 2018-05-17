@@ -36,7 +36,7 @@ set -e   # Terminate script at first error
 level=$LEVEL
 echo LEVEL: $LEVEL >&2
 
-case $ARCH in
+case $ARCHITECTURE in
     bash)
 	idx=$PARALLEL_SEQ
 	wd=$PWD
