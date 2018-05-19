@@ -55,7 +55,12 @@ case $arch in
 	levelplus=$[$level+4]
 	tsec=$[$levelplus**3*60]
 	atlasn=$(cat $datalist | wc -l)
-	chunkn=$[$[$level-3]**2]
+	if [[ -n $PINCRAM_CHUNKSIZE ]] 
+	then
+	    chunkn=$PINCRAM_CHUNKSIZE
+	else
+	    chunkn=$[$[$level-3]**2]
+	fi
 	jobn=$[$atlasn / $chunkn + 1]
 	[[ -n $queue ]] && qu="-q $queue"
 	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe -N reg${level}n$chunkn $qu $script)

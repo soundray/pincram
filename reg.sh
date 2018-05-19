@@ -45,7 +45,11 @@ case $ARCH in
     pbs)
 	idx=$PBS_ARRAY_INDEX
 	wd=$PBS_O_WORKDIR
-	chunkn=$[$[$level-3]**2]
+	if [[ -n PINCRAM_CHUNKSIZE ]] 
+	    then chunkn=$PINCRAM_CHUNKSIZE
+	else
+	    chunkn=$[$[$level-3]**2]
+	fi
 	;;
 esac
 
