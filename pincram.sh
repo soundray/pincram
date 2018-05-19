@@ -100,9 +100,9 @@ done
 
 [ -e "$tpn" ] || fatal "Target positional normalization does not exist"
 
-[ -n "$result" ] || fatal "Result filename not set"
+[ -n "$result" ] || fatal "Result filename not set (e.g. -result brain-mask.nii.gz)"
 
-[ -n "$altresult" ] || fatal "Alternative result filename not set"
+[ -n "$altresult" ] || fatal "Alternative result filename not set (e.g. -altresult icv-mask.nii.gz)"
 
 [ -e "$atlas" ] || fatal "Atlas directory or file does not exist"
 
@@ -223,7 +223,7 @@ for level in $(seq 0 $maxlevel) ; do
     masksready=0
     minready=$[$nselected*90/100] # Speedup at the cost of reproducibility. Comment out next line.
     # minready=$nselected
-    echo -n .
+    echo -n $($cdir/spark 0 $masksready $nselected | cut -c 2)
     sleeptime=$[$level*5+5]
     sleep $sleeptime
     until [[ $masksready -ge $minready ]]
@@ -234,7 +234,7 @@ for level in $(seq 0 $maxlevel) ; do
 	masksready=$( ls masktr-$thislevel-s* 2>/dev/null | wc -l )
 	[[ $masksready -gt $prevmasksready ]] && loopcount=0
 	[[ $masksready -eq 1 ]] && masksready=0
-	echo -n .
+	echo -n $($cdir/spark 0 $masksready $nselected | cut -c 2)
 	sleep $sleeptime
     done
     echo
