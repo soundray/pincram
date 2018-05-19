@@ -21,7 +21,6 @@ do
 	-datalist)        datalist="$2"; shift;;
 	-jobs)               ijobs="$2"; shift;;
 	-arch)               iarch="$2"; shift;;
-	-queue)              queue="$2"; shift;;
 	-level)             ilevel="$2"; shift;;
     --) shift; break;;
     -*)
