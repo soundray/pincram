@@ -50,19 +50,17 @@ tempdir () {
 }
 
 normalpath () {
-    local s=$1
-    local filetype dir bas ret
-    [[ $s == ${s::400} ]] || fatal "Option path too long"
-    [[ $s == ${s//[^[:print:]]/} ]] || fatal "Non-printables in path"
-    [[ -e $s ]] && filetype=$(file $s) 
-    if [[ $filetype == "directory" ]] 
-	then ret=$(cd $s && pwd)
-	else 
-	dir=$(dirname "$s")
-	bas=$(basename "$s")
-	ret=$(cd $dir && pwd)/$bas
-    fi
-    echo $ret
+    local s="$1"
+    [[ ${#s} -lt 800 ]] || fatal "Option path too long"
+    [[ "$s" =~ ^[[:print:]]*$ ]] || fatal "Non-printables in path"
+    dir=$(dirname -- "$1")
+    bas=$(basename -- "$1")
+    echo $(cd $dir && pwd)/$bas
+}
+
+finish () {
+    [[ $savewd -eq 1 ]] || rm -rf "$td"
+    exit
 }
 
 set -e   # Terminate script at first error
