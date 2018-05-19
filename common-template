@@ -28,6 +28,7 @@ export PATH LD_LIBRARY_PATH
 # ARCH=ge
 ARCH=pbs
 export ARCH
+# export queue=myqueue ## Gets added to qsub call with -q option
 
 # Functions etc. -- no adjustments normally necessary below this line
 
