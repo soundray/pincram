@@ -36,4 +36,4 @@ Add pincram directory to PATH.  Copy common-template to common and adapt to syst
 
 ## If you use this software for your research
 
-Please cite: Heckemann RA, Ledig C, Gray KR, Aljabar P, Rueckert D, Hajnal JV, Hammers A. Brain Extraction Using Label Propagation and Group Agreement: Pincram. PLOS ONE. 2015 Jul 10;10(7):e0129211.
+Please cite: [Heckemann RA, Ledig C, Gray KR, Aljabar P, Rueckert D, Hajnal JV, Hammers A. Brain Extraction Using Label Propagation and Group Agreement: Pincram. PLOS ONE. 2015 Jul 10;10(7):e0129211.](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0129211 "PLOS ONE")
