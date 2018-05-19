@@ -1,3 +1,5 @@
+# pincram
+
 Brain extraction using label propagation and group agreement.
 
 Pincram takes as input
