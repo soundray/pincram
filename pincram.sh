@@ -48,6 +48,9 @@ Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz 
 
 -tpn        : Rigid transformation for positional normalization of the target image (optional)
 
+-thresholds : Triplet of values setting per-level segmentation thresholds.  Default is 56 60 60.  Smaller
+              values result in more generous output masks.
+
 -atlasn     : Use a maximum of N atlases.  By default, all available are used.
 
 -levels     : Integer, minimum 1, maximum 3. Indicates level of refinement required.
@@ -64,6 +67,7 @@ fatal "Parameter error"
 tgt=$(normalpath "$1") ; shift
 test -e $tgt || fatal "No image found -- $t"
 
+. "$cdir"/pincram.rc
 tpn="$cdir"/neutral.dof.gz
 result=
 nonselres=
@@ -86,6 +90,7 @@ do
 	-atlas)           atlas=$(normalpath "$2"); shift;;
 	-workdir)       workdir=$(normalpath "$2"); shift;;
 	-ref)               ref=$(normalpath "$2"); shift;;
+	-thresholds)     thr[0]=$1 ; shift ; thr[1]=$1 ; shift ; thr[2]=$1 ; shift ;;
 	-savewd)         savewd=1 ;;
 	-atlasn)         atlasn="$2"; shift;;
 	-levels)         levels="$2"; shift;;
@@ -111,8 +116,6 @@ done
 maxlevel=$[$levels-1]
 
 [[ "$par" =~ ^[0-9]+$ ]] || par=1
-
-. "$cdir"/pincram.rc
 
 echo "Extracting $tgt"
 echo "Writing brain label to $result"
