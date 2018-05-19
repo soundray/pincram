@@ -138,6 +138,7 @@ export PINCRAM_WORKDIR=$td
 trap 'if [[ $savewd != 1 ]] ; then rm -rf "$td" ; fi' 0 1 15 
 cd "$td" || fatal "Error: cannot cd to temp directory $td"
 
+# Atlas database read and check
 if [[ -d "$atlas" ]] ; then
     if [[ -e "$atlas"/atlases.csv ]] ; then 
 	atlas="$atlas"/atlases.csv
@@ -146,7 +147,11 @@ if [[ -d "$atlas" ]] ; then
 	atlas=$PWD/atlases.csv
     fi
 fi
+
 atlasbase=$(head -n 1 $atlas)
+set -- $(head -n 2 $atlas | tail -n 1 | tr ',' ' ')
+[[ -e $atlasbase/$2 ]] || fatal "Atlas error ($atlasbase/$2 does not exist)"
+
 atlasmax=$[$(cat $atlas | wc -l)-1]
 [[ "$atlasn" =~ ^[0-9]+$ ]] || atlasn=$atlasmax
 [[ "$atlasn" -gt $atlasmax || "$atlasn" -eq 0 ]] && atlasn=$atlasmax
