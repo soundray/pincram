@@ -209,7 +209,7 @@ for level in $(seq 0 $maxlevel) ; do
     masksready=0
     minready=$[$nselected*90/100] # Speedup at the cost of reproducibility. Comment out next line.
     # minready=$nselected
-    echo -en "$masksready of $nselected calculated     "
+    echo -en .
     sleeptime=$[$level*5+5]
     sleep $sleeptime
     until [[ $masksready -ge $minready ]]
@@ -220,7 +220,7 @@ for level in $(seq 0 $maxlevel) ; do
 	masksready=$( ls masktr-$thislevel-s* 2>/dev/null | wc -l )
 	[[ $masksready -gt $prevmasksready ]] && loopcount=0
 	[[ $masksready -eq 1 ]] && masksready=0
-	echo -en \\b"$masksready of $nselected calculated     " | tee -a noisy.log
+	echo .
 	sleep $sleeptime
     done
     echo

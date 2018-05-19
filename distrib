@@ -21,6 +21,7 @@ do
 	-datalist)        datalist="$2"; shift;;
 	-jobs)               ijobs="$2"; shift;;
 	-arch)               iarch="$2"; shift;;
+	-queue)              queue="$2"; shift;;
 	-level)             ilevel="$2"; shift;;
     --) shift; break;;
     -*)
@@ -56,7 +57,8 @@ case $arch in
 	atlasn=$(cat $datalist | wc -l)
 	chunkn=$[$[$level-3]**2]
 	jobn=$[$atlasn / $chunkn + 1]
-	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe -N reg${level}n$chunkn $script)
+	[[ -n $queue ]] && qu="-q $queue"
+	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe -N reg${level}n$chunkn $qu $script)
 	;;
     bash)
 	[[ $jobs == "100%" ]] && jobs=$(nproc --all)
