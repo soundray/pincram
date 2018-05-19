@@ -90,7 +90,7 @@ do
 	-atlas)           atlas=$(normalpath "$2"); shift;;
 	-workdir)       workdir=$(normalpath "$2"); shift;;
 	-ref)               ref=$(normalpath "$2"); shift;;
-	-thresholds)     thr[0]=$1 ; shift ; thr[1]=$1 ; shift ; thr[2]=$1 ; shift ;;
+	-thresholds)     thr[0]=$2 ; shift ; thr[1]=$2 ; shift ; thr[2]=$2 ; shift ;;
 	-savewd)         savewd=1 ;;
 	-atlasn)         atlasn="$2"; shift;;
 	-levels)         levels="$2"; shift;;
@@ -307,7 +307,7 @@ seg_maths alt-$thislevel-sel.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask
 
 convert andmask.nii.gz output.nii.gz -uchar >>noisy.log 2>&1
 convert ormask.nii.gz altoutput.nii.gz -uchar >>noisy.log 2>&1
-set -vx
+
 headertool output.nii.gz "$result" -origin $originalorigin
 headertool altoutput.nii.gz "$altresult" -origin $originalorigin
 
