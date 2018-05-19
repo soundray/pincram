@@ -24,11 +24,12 @@ export FSLDIR
 export PATH LD_LIBRARY_PATH
 
 # Parallelization architecture / middleware
-# ARCH=bash
-# ARCH=ge
-ARCH=pbs
-export ARCH
-# export queue=myqueue ## Gets added to qsub call with -q option
+# PINCRAM_ARCH=bash
+# PINCRAM_ARCH=ge
+PINCRAM_ARCH=pbs
+export PINCRAM_ARCH
+# export PINCRAM_QUEUE=myqueue ## Gets added to qsub call with -q option
+# export PINCRAM_CHUNKSIZE=1 ## Number of registrations per array subjob
 
 # Functions etc. -- no adjustments normally necessary below this line
 

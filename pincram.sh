@@ -203,7 +203,7 @@ for level in $(seq 0 $maxlevel) ; do
     done
 
     cp job.conf job-$thislevel.conf
-    "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -arch $ARCH -level $level
+    "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level
 
     loopcount=0
     masksready=0

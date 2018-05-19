@@ -12,7 +12,6 @@ echo $comline
 # parameters
 datalist=
 ijobs="100%"
-arch="pbs"
 mem=7900
 while [ $# -gt 0 ]
 do
@@ -20,12 +19,11 @@ do
 	-script)            script="$2"; shift;;
 	-datalist)        datalist="$2"; shift;;
 	-jobs)               ijobs="$2"; shift;;
-	-arch)               iarch="$2"; shift;;
 	-level)             ilevel="$2"; shift;;
     --) shift; break;;
     -*)
         echo >&2 \
-	         "Usage: $0 -script script.sh -datalist list.sh -jobs max-parallel -arch [pbs|ge|bash] -level level"
+	         "Usage: $0 -script script.sh -datalist list.sh -jobs max-parallel -level level"
     exit 1;;
 *)  break;;# terminate while loop
     esac
@@ -35,7 +33,7 @@ done
 jobs=$ijobs
 [[ $jobs =~ ^[0-9]+%?$ ]] || fatal "Non-numeric setting for -jobs"
 
-arch=$iarch
+[[ -n $PINCRAM_ARCH ]] && arch=$PINCRAM_ARCH
 [[ $arch =~ pbs|bash|ge ]] || fatal "Architecture not set or not implemented (\$arch=$arch)"
 
 level=$ilevel
@@ -44,7 +42,7 @@ level=$ilevel
 [[ -e $datalist ]] || fatal "Data list $datalist not found"
 datalist=$(normalpath $datalist)
 
-export LEVEL=$level ARCH=$arch
+export LEVEL=$level 
 case $arch in
     ge)
 	fatal "$arch not implemented"
