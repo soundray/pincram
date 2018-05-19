@@ -39,11 +39,12 @@ Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz 
               will be deleted after processing. Set this flag to keep intermediate files.
 
 -atlas      : Atlas directory.
-              Has to contain limages/full/m{1..n}.nii.gz, lmasks/full/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz 
+              Has to contain images/full/m{1..n}.nii.gz, masks/full/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz 
               Alternatively, it can point to a csv spreadsheet: first row should be base directory for atlas 
               files. Entries should be relative to base directory. Each row refers to one atlas.  
-              Column 1: atlasname, column 2: full image, column 3: margin image, column 4: mask, column 5: transformation 
-              (.dof format) for positional normalization. Atlasname should be unique across entries. 
+              Column 1: atlasname, Column 2: full image, Column 3: margin image, Column 4: transformation 
+              (.dof format) for positional normalization, Column 5: mask, Column 6: alternative mask. 
+              Atlasname should be unique across entries. 
 
 -tpn        : Rigid transformation for positional normalization of the target image (optional)
 
