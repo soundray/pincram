@@ -295,6 +295,7 @@ seg_maths alt-$thislevel-sel.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask
 
 convert andmask.nii.gz output.nii.gz -uchar >>noisy.log 2>&1
 convert ormask.nii.gz altoutput.nii.gz -uchar >>noisy.log 2>&1
+set -vx
 headertool output.nii.gz "$result" -origin $originalorigin
 headertool altoutput.nii.gz "$altresult" -origin $originalorigin
 

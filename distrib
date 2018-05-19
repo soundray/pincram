@@ -59,7 +59,7 @@ case $arch in
 	    chunkn=$[$[$level-3]**2]
 	fi
 	jobn=$[$atlasn / $chunkn + 1]
-	[[ -n $queue ]] && qu="-q $queue"
+	[[ -n $PINCRAM_QUEUE ]] && qu="-q $PINCRAM_QUEUE"
 	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe -N reg${level}n$chunkn $qu $script)
 	;;
     bash)
