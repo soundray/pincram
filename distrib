@@ -20,7 +20,7 @@ do
 	-script)            script="$2"; shift;;
 	-datalist)        datalist="$2"; shift;;
 	-jobs)               ijobs="$2"; shift;;
-	-arch)                arch="$2"; shift;;
+	-arch)               iarch="$2"; shift;;
 	-level)             ilevel="$2"; shift;;
     --) shift; break;;
     -*)
@@ -35,12 +35,16 @@ done
 jobs=$ijobs
 [[ $jobs =~ ^[0-9]+%?$ ]] || fatal "Non-numeric setting for -jobs"
 
+arch=$iarch
+[[ $arch =~ pbs|bash|ge ]] || fatal "Architecture not set or not implemented (\$arch=$arch)"
+
 level=$ilevel
-[[ $level =~ ^[0-9]+%?$ ]] || fatal "Non-numeric setting for -level"
+[[ $level =~ ^[0-9]+%?$ ]] || fatal "Non-numeric setting for -level. level = $level ilevel = $ilevel"
 
 [[ -e $datalist ]] || fatal "Data list $datalist not found"
 datalist=$(normalpath $datalist)
 
+export LEVEL=$level ARCHITECTURE=$arch
 case $arch in
     ge)
 	fatal "$arch not implemented"
@@ -52,9 +56,10 @@ case $arch in
 	atlasn=$(cat $datalist | wc -l)
 	chunkn=$[$[$level-3]**2]
 	jobn=$[$atlasn / $chunkn + 1]
-	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe $script)
+	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe -N reg${level}n$chunkn $script)
 	;;
     bash)
+	[[ $jobs == "100%" ]] && jobs=$(nproc --all)
 	cat $datalist | parallel -j $jobs $script
 	;;
     *)

@@ -11,9 +11,7 @@ commandline="$pn $*"
 # Parameter handling
 usage () { 
 cat <<EOF
-pincram version 0.2 
-
-Copyright (C) 2012-2015 Rolf A. Heckemann 
+Copyright (C) 2012-2018 Rolf A. Heckemann 
 Web site: http://www.soundray.org/pincram 
 
 Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz \\ 
@@ -25,6 +23,11 @@ Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz 
 <input>     : T1-weighted magnetic resonance image in gzipped NIfTI format.
 
 -result     : Name of file to receive output brain label. The output is a binary label image.
+
+-nonselres  : Name of file to receive output brain label. The output is a binary label image, based on 
+              previous-to-last processing step, ie. fused label before selection.  Occasionally, this
+              can be of better quality than the final label (saved with -result), in particular if the 
+              latter has implausible holes.
 
 -altresult  : Name of file to receive alternative output label.  The output is a binary label image.
 
@@ -62,6 +65,7 @@ test -e $tgt || fatal "No image found -- $t"
 
 tpn="$cdir"/neutral.dof.gz
 result=
+nonselres=
 altresult=
 probresult=
 par=1
@@ -75,6 +79,7 @@ do
     case "$1" in
 	-tpn)               tpn=$(normalpath "$2"); shift;;
 	-result)         result=$(normalpath "$2"); shift;;
+	-nonselres)   nonselres=$(normalpath "$2"); shift;;
 	-altresult)   altresult=$(normalpath "$2"); shift;;
 	-probresult) probresult=$(normalpath "$2"); shift;;
 	-atlas)           atlas=$(normalpath "$2"); shift;;
@@ -120,6 +125,11 @@ assess() {
     return 0
 }
 
+origin() {
+    img="$1" ; shift
+    info $img | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6 
+}
+
 # Core working directory
 mkdir -p "$workdir"
 td=$(mktemp -d "$workdir/$(basename $0)-c$exclude.XXXXXX") || fatal "Could not create working directory in $workdir"
@@ -143,7 +153,7 @@ atlasmax=$[$(cat $atlas | wc -l)-1]
 echo "$commandline" >commandline.log
 
 # Target preparation
-originalorigin=$(info "$tgt" | grep ^Image.origin | cut -d ' ' -f 4-6)
+originalorigin=$(origin "$tgt")
 headertool "$tgt" target-full.nii.gz -origin 0 0 0
 convert "$tgt" target-full.nii.gz -float
 [ -e "$ref" ] && cp "$ref" ref.nii.gz && chmod +w ref.nii.gz
@@ -192,7 +202,7 @@ for level in $(seq 0 $maxlevel) ; do
     done
 
     cp job.conf job-$thislevel.conf
-    "$cdir"/distrib -script "$cdir"/reg$level.sh -datalist $td/job.conf -arch $ARCH -level $level
+    "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -arch $ARCHITECTURE -level $level
 
     loopcount=0
     masksready=0
@@ -205,8 +215,9 @@ for level in $(seq 0 $maxlevel) ; do
     do 
 	(( loopcount += 1 ))
 	[[ loopcount -gt 500 ]] && fatal "Waited too long for registration results"
-	prevmasksread=$masksready
+	prevmasksready=$masksready
 	masksready=$( ls masktr-$thislevel-s* 2>/dev/null | wc -l )
+	[[ $masksready -gt $prevmasksready ]] && loopcount=0
 	[[ $masksready -eq 1 ]] && masksready=0
 	echo -en \\b"$masksready of $nselected calculated     " | tee -a noisy.log
 	sleep $sleeptime
@@ -283,6 +294,10 @@ headertool altoutput.nii.gz "$altresult" -origin $originalorigin
 
 if [ -n "$probresult" ] ; then
     headertool tmask-$thislevel-sel-atlas.nii.gz "$probresult" -origin $originalorigin
+fi
+
+if [ -n "$nonselres" ] ; then
+    headertool tmask-$thislevel.nii.gz "$nonselres" -origin $originalorigin
 fi
 
 exit 0
