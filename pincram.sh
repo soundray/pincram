@@ -102,6 +102,8 @@ done
 
 [ -n "$result" ] || fatal "Result filename not set"
 
+[ -n "$altresult" ] || fatal "Alternative result filename not set"
+
 [ -e "$atlas" ] || fatal "Atlas directory or file does not exist"
 
 ## Set levels to three unless set to 1 or 2 via -levels option
@@ -138,7 +140,9 @@ export PINCRAM_WORKDIR=$td
 trap 'if [[ $savewd != 1 ]] ; then rm -rf "$td" ; fi' 0 1 15 
 cd "$td" || fatal "Error: cannot cd to temp directory $td"
 
-# Atlas database read and check
+
+### Atlas database read and check
+
 if [[ -d "$atlas" ]] ; then
     if [[ -e "$atlas"/atlases.csv ]] ; then 
 	atlas="$atlas"/atlases.csv
@@ -150,13 +154,18 @@ fi
 
 atlasbase=$(head -n 1 $atlas)
 set -- $(head -n 2 $atlas | tail -n 1 | tr ',' ' ')
-[[ -e $atlasbase/$2 ]] || fatal "Atlas error ($atlasbase/$2 does not exist)"
+shift
+while [[ $# -gt 0 ]] ; do
+[[ -e $atlasbase/$1 ]] || fatal "Atlas error ($atlasbase/$1 does not exist)"
+shift
+done
 
 atlasmax=$[$(cat $atlas | wc -l)-1]
 [[ "$atlasn" =~ ^[0-9]+$ ]] || atlasn=$atlasmax
 [[ "$atlasn" -gt $atlasmax || "$atlasn" -eq 0 ]] && atlasn=$atlasmax
 
 echo "$commandline" >commandline.log
+
 
 # Target preparation
 originalorigin=$(origin "$tgt")
