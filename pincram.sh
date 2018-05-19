@@ -140,7 +140,7 @@ origin() {
 mkdir -p "$workdir"
 td=$(mktemp -d "$workdir/$(basename $0)-c$exclude.XXXXXX") || fatal "Could not create working directory in $workdir"
 export PINCRAM_WORKDIR=$td
-trap 'if [[ $savewd != 1 ]] ; then rm -rf "$td" ; fi' 0 1 15 
+trap finish EXIT 
 cd "$td" || fatal "Error: cannot cd to temp directory $td"
 
 
