@@ -45,8 +45,8 @@ case "$PINCRAM_ARCH" in
     pbs)
 	idx=$PBS_ARRAY_INDEX
 	wd=$PBS_O_WORKDIR
-	if [[ -n PINCRAM_CHUNKSIZE ]] 
-	    then chunkn=$PINCRAM_CHUNKSIZE
+	if [[ -n "$PINCRAM_CHUNKSIZE" ]] 
+	    then chunkn="$PINCRAM_CHUNKSIZE"
 	else
 	    chunkn=$[$[$level-3]**2]
 	fi
@@ -88,7 +88,7 @@ do
 	shift
     done
 
-    if [[ -n $PINCRAM_USE_MIRTK ]] ; then
+    if [[ -n "$PINCRAM_USE_MIRTK" ]] ; then
 	if [[ $lev == 0 ]] ; then
 	    invert-dof "$tpn" tpninv.dof
 	    compose-dofs "$spn" tpninv.dof pre.dof
