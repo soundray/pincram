@@ -8,7 +8,9 @@ pn=$(basename $0)
 
 commandline="$pn $*"
 
-# Parameter handling
+
+### Usage & parameter handling
+
 usage () { 
 cat <<EOF
 Copyright (C) 2012-2018 Rolf A. Heckemann 
@@ -120,7 +122,8 @@ maxlevel=$[$levels-1]
 echo "Extracting $tgt"
 echo "Writing brain label to $result"
 
-# Functions
+
+### Functions
 
 assess() {
     local glabels="$1"
@@ -136,7 +139,8 @@ origin() {
     info $img | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6 
 }
 
-# Core working directory
+
+### Core working directory
 mkdir -p "$workdir"
 td=$(mktemp -d "$workdir/$(basename $0)-c$exclude.XXXXXX") || fatal "Could not create working directory in $workdir"
 export PINCRAM_WORKDIR=$td
@@ -170,13 +174,16 @@ atlasmax=$[$(cat $atlas | wc -l)-1]
 echo "$commandline" >commandline.log
 
 
-# Target preparation
+### Target preparation
+
 originalorigin=$(origin "$tgt")
 headertool "$tgt" target-full.nii.gz -origin 0 0 0
 convert "$tgt" target-full.nii.gz -float
 [ -e "$ref" ] && cp "$ref" ref.nii.gz && chmod +w ref.nii.gz
 
-# Arrays
+
+### Arrays
+
 levelname[0]="rigid"
 levelname[1]="affine"
 levelname[2]="nonrigid"
@@ -185,7 +192,9 @@ levelname[3]="none"
 dmaskdil[0]=3
 dmaskdil[1]=3
 
-# Initialize first loop
+
+### Initialize first loop
+
 tgt="$PWD"/target-full.nii.gz
 level=0
 prevlevel=init
@@ -193,12 +202,16 @@ seq 1 $atlasn >selection-$prevlevel.csv
 nselected=$(cat selection-$prevlevel.csv | wc -l)
 usepercent=$(echo $nselected | awk '{ printf "%.0f", 100*(8/$1)^(1/3) } ')
 
-# Prep datasets line by line in job.conf
+
+### Iterate over levels
+
 for level in $(seq 0 $maxlevel) ; do
     thislevel=${levelname[$level]}
     thisthr=${thr[$level]}
     echo "Level $thislevel"
     [[ -e $td/job.conf ]] && rm $td/job.conf
+
+    ### Prep datasets line by line in job.conf
     for srcindex in $(cat selection-$prevlevel.csv) ; do
     
 	set -- $(head -n $[$srcindex+1] $atlas | tail -n 1 | tr ',' ' ')
@@ -219,8 +232,12 @@ for level in $(seq 0 $maxlevel) ; do
 	echo "-tgt $tgt" "-src $src" "-srctr $srctr" "-msk $msk" "-masktr $masktr" "-alt $alt" "-alttr $alttr" "-dofin $dofin" "-dofout $dofout" "-spn $spn" "-tpn $tpn" "-lev $level" >>$td/job.conf
     done
 
+    ### Launch parallel registrations
     cp job.conf job-$thislevel.conf
     "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level
+
+
+    ### Monitor incoming results and wait
 
     loopcount=0
     masksready=0
@@ -243,7 +260,9 @@ for level in $(seq 0 $maxlevel) ; do
     echo
     [[ $masksready -lt $nselected ]] && sleep 30  # Extra sleep if we're going on an incomplete mask set
 
-# Generate reference for atlas selection (fused from all)
+
+    ### Generate reference for atlas selection (fused from all)
+
     echo "Building reference atlas for selection at level $thislevel"
     for i in masktr-$thislevel-s* ; do 
 	[[ -s $i ]] || mv $i failed-$i
@@ -253,7 +272,10 @@ for level in $(seq 0 $maxlevel) ; do
     [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel" 
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-atlas.nii.gz
-# Generate target margin mask for similarity ranking and apply 
+
+
+    ### Generate target margin mask for similarity ranking and apply 
+
     seg_maths tmask-$thislevel-atlas.nii.gz -thr 0.$thisthr -bin tmask-$thislevel.nii.gz 
     dilation tmask-$thislevel.nii.gz tmask-$thislevel-wide.nii.gz -iterations 1 >>noisy.log 2>&1
     erosion tmask-$thislevel.nii.gz tmask-$thislevel-narrow.nii.gz -iterations 1 >>noisy.log 2>&1
@@ -261,7 +283,9 @@ for level in $(seq 0 $maxlevel) ; do
     dilation emargin-$thislevel.nii.gz emargin-$thislevel-dil.nii.gz -iterations 3 >>noisy.log 2>&1
     padding target-full.nii.gz emargin-$thislevel-dil.nii.gz emasked-$thislevel.nii.gz 0 0
     assess tmask-$thislevel.nii.gz
-# Selection
+
+
+    ### Selection
     echo "Selecting"
     for srcindex in $(cat selection-$prevlevel.csv) ; do
 	srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
@@ -275,7 +299,9 @@ for level in $(seq 0 $maxlevel) ; do
     mv xaa selection-$thislevel.csv
     [ -e xab ] && cat x?? > unselected-$thislevel.csv 
     echo "Selected $nselected at $thislevel"
-# Build label from selection 
+
+
+    ### Build label from selection 
     set -- $(cat selection-$thislevel.csv | while read -r item ; do echo masktr-$thislevel-s$item.nii.gz ; done)
      #TODO: check for missing masktr-*
     thissize=$#
@@ -285,7 +311,8 @@ for level in $(seq 0 $maxlevel) ; do
     seg_maths tmask-$thislevel-sel-atlas.nii.gz -thr 0.$thisthr -bin tmask-$thislevel-sel.nii.gz 
     assess tmask-$thislevel-sel.nii.gz
     prevlevel=$thislevel
-# Data mask (skip on last iteration)
+
+    ### Data mask (skip on last iteration)
     [ $level -eq $maxlevel ] && continue
     seg_maths tmask-$thislevel-sel-atlas.nii.gz -thr 0.15 -bin tmask-$thislevel-wide.nii.gz
     seg_maths tmask-$thislevel-sel-atlas.nii.gz -thr 0.99 -bin tmask-$thislevel-narrow.nii.gz
@@ -295,7 +322,13 @@ for level in $(seq 0 $maxlevel) ; do
     tgt="$PWD"/dmasked-$thislevel.nii.gz
 done
 
+
+### Calculate success index (SI)
+
 echo -n "SI:" ; labelStats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -false
+
+
+### Generate alt (ICV) masks
 
 set -- $(cat selection-$thislevel.csv | while read -r item ; do echo alttr-$thislevel-s$item.nii.gz ; done) 
 #TODO: check for missing alttr-*
@@ -308,6 +341,7 @@ seg_maths alt-$thislevel-sel.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask
 convert andmask.nii.gz output.nii.gz -uchar >>noisy.log 2>&1
 convert ormask.nii.gz altoutput.nii.gz -uchar >>noisy.log 2>&1
 
+### Apply original origin settings and copy output
 headertool output.nii.gz "$result" -origin $originalorigin
 headertool altoutput.nii.gz "$altresult" -origin $originalorigin
 
