@@ -33,7 +33,7 @@ done
 jobs=$ijobs
 [[ $jobs =~ ^[0-9]+%?$ ]] || fatal "Non-numeric setting for -jobs"
 
-[[ -n $PINCRAM_ARCH ]] && arch=$PINCRAM_ARCH
+[[ -n "$PINCRAM_ARCH" ]] && arch="$PINCRAM_ARCH"
 [[ $arch =~ pbs|bash|ge ]] || fatal "Architecture not set or not implemented (\$arch=$arch)"
 
 level=$ilevel
@@ -48,7 +48,7 @@ case $arch in
 	fatal "$arch not implemented"
 	;;
     pbs)
-	cd $PINCRAM_WORKDIR
+	cd "$PINCRAM_WORKDIR"
 	levelplus=$[$level+4]
 	tsec=$[$levelplus**3*60]
 	atlasn=$(cat $datalist | wc -l)
@@ -59,7 +59,7 @@ case $arch in
 	    chunkn=$[$[$level-3]**2]
 	fi
 	jobn=$[$atlasn / $chunkn + 1]
-	[[ -n $PINCRAM_QUEUE ]] && qu="-q $PINCRAM_QUEUE"
+	[[ -n "$PINCRAM_QUEUE" ]] && qu="-q $PINCRAM_QUEUE"
 	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe -N reg${level}n$chunkn $qu $script)
 	;;
     bash)
