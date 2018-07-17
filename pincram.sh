@@ -179,7 +179,6 @@ echo "$commandline" >commandline.log
 originalorigin=$(origin "$tgt")
 headertool "$tgt" target-full.nii.gz -origin 0 0 0
 convert "$tgt" target-full.nii.gz -float
-seg_maths target-full.nii.gz -otsu otsu.nii.gz ; mv otsu.nii.gz target-full.nii.gz
 [ -e "$ref" ] && cp "$ref" ref.nii.gz && chmod +w ref.nii.gz
 
 

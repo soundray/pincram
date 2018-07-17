@@ -112,8 +112,6 @@ do
 	exit 0
     fi
     
-    seg_maths "$src" -otsu src.nii.gz
-
     if [[ $lev == 0 ]] ; then
 	cat >lev0.reg << EOF
 #
@@ -157,8 +155,8 @@ Maximum length of steps           = 2
 EOF
 
 	dofcombine "$spn" "$tpn" pre.dof.gz -invert2
-	echo rreg2 "$tgt" src.nii.gz -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg 
-	rreg2 "$tgt" src.nii.gz -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg 
+	echo rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg 
+	rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg 
     fi
     
     if [[ $lev == 1 ]] ; then
@@ -172,8 +170,8 @@ EOF
 No. of resolution levels          = 2
 No. of bins                       = 64
 Epsilon                           = 0.0001
-Padding value                     = -1
-Source padding value              = -1
+Padding value                     = 0
+Source padding value              = 0
 Similarity measure                = NMI
 Interpolation mode                = Linear
 
@@ -205,8 +203,8 @@ Maximum length of steps           = 1
 
 EOF
 
-	echo areg2 "$tgt" src.nii.gz -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
-	areg2 "$tgt" src.nii.gz -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
+	echo areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
+	areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
     fi
     
     if [[ $lev == 2 ]] ; then
@@ -232,8 +230,8 @@ MFFDMode                          = True
 No. of resolution levels          = 1
 No. of bins                       = 128
 Epsilon                           = 0.0001
-Padding value                     = -1
-Source padding value              = -1
+Padding value                     = 0
+Source padding value              = 0
 Similarity measure                = NMI
 Interpolation mode                = Linear
 
@@ -252,12 +250,12 @@ Maximum length of steps           = 2
 
 EOF
 
-	echo nreg2 "$tgt" src.nii.gz -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
-	nreg2 "$tgt" src.nii.gz -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
+	echo nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
+	nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
     fi
 
     transformation "$msk" masktr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
-    transformation src.nii.gz srctr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
+    transformation "$src" srctr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
     transformation "$alt" alttr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
     cp masktr.nii.gz "$masktr"
     cp srctr.nii.gz "$srctr"   
