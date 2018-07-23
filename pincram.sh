@@ -234,7 +234,7 @@ for level in $(seq 0 $maxlevel) ; do
 
     ### Launch parallel registrations
     cp job.conf job-$thislevel.conf
-    "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level
+    "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level >>$td/noisy.log 2>&1
 
 
     ### Monitor incoming results and wait
