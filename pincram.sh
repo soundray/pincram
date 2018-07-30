@@ -280,19 +280,17 @@ for level in $(seq 0 $maxlevel) ; do
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-sum.nii.gz
     tar cf masktr-$thislevel-n$thissize.tar $@
+
+
+    ### Generate intermediate target mask
+
     seg_maths tmask-$thislevel-sum.nii.gz -thr 0 -bin tmask-$thislevel.nii.gz 
     assess tmask-$thislevel.nii.gz
 
 
     ### Generate target margin mask for similarity ranking and apply 
 
-    seg_maths tmask-$thislevel-sum.nii.gz -thr 0.$thisthr -bin tmask-$thislevel.nii.gz 
-    dilation tmask-$thislevel.nii.gz tmask-$thislevel-wide.nii.gz -iterations 1 >>noisy.log 2>&1
-    erosion tmask-$thislevel.nii.gz tmask-$thislevel-narrow.nii.gz -iterations 1 >>noisy.log 2>&1
-    subtract tmask-$thislevel-wide.nii.gz tmask-$thislevel-narrow.nii.gz emargin-$thislevel.nii.gz >>noisy.log 2>&1
-    dilation emargin-$thislevel.nii.gz emargin-$thislevel-dil.nii.gz -iterations 3 >>noisy.log 2>&1
-    padding target-full.nii.gz emargin-$thislevel-dil.nii.gz emasked-$thislevel.nii.gz 0 0
-    assess tmask-$thislevel.nii.gz
+    seg_maths tmask-$thislevel-sum.nii.gz -abs -uthr 0.99 -bin emargin-$thislevel-dil.nii.gz
 
 
     ### Selection
