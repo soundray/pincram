@@ -276,7 +276,7 @@ for level in $(seq 0 $maxlevel) ; do
     ### Generate intermediate target mask
 
     seg_maths tmask-$thislevel-sum.nii.gz -thr 0 -bin tmask-$thislevel.nii.gz
-    assess tmask-$thislevel.nii.gz
+    assess tmask-$thislevel.nii.gz | tee -a assess.log
 
 
     ### Generate target margin mask for similarity ranking and apply
@@ -315,7 +315,7 @@ for level in $(seq 0 $maxlevel) ; do
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ tmask-$thislevel-sel-sum.nii.gz
     seg_maths tmask-$thislevel-sel-sum.nii.gz -thr 0 -bin tmask-$thislevel-sel.nii.gz
-    assess tmask-$thislevel-sel.nii.gz
+    assess tmask-$thislevel-sel.nii.gz | tee -a assess.log
     rm masktr-$thislevel-*.nii.gz
     prevlevel=$thislevel
 
@@ -354,6 +354,8 @@ seg_maths altmsk-bin.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask.nii.gz
 
 convert andmask.nii.gz output.nii.gz -uchar >>noisy.log 2>&1
 convert ormask.nii.gz altoutput.nii.gz -uchar >>noisy.log 2>&1
+
+assess output.nii.gz | tee -a assess.log
 
 ### Apply original origin settings and copy output
 headertool output.nii.gz "$result" -origin $originalorigin
