@@ -11,24 +11,24 @@ commandline="$pn $*"
 
 ### Usage & parameter handling
 
-usage () { 
+usage () {
 cat <<EOF
-Copyright (C) 2012-2018 Rolf A. Heckemann 
-Web site: http://www.soundray.org/pincram 
+Copyright (C) 2012-2018 Rolf A. Heckemann
+Web site: http://www.soundray.org/pincram
 
-Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz \\ 
-                       [-probresult probresult.nii.gz] \\ 
-                       [-workdir working_directory] [-savewd] \\ 
-                       [-atlas atlas_directory | -atlas file.csv] [-atlasn N ] \\ 
-                       [-levels {1..3}] [-par max_parallel_jobs] [-ref ref.nii.gz] 
+Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz \\
+                       [-probresult probresult.nii.gz] \\
+                       [-workdir working_directory] [-savewd] \\
+                       [-atlas atlas_directory | -atlas file.csv] [-atlasn N ] \\
+                       [-levels {1..3}] [-par max_parallel_jobs] [-ref ref.nii.gz]
 
 <input>     : T1-weighted magnetic resonance image in gzipped NIfTI format.
 
 -result     : Name of file to receive output brain label. The output is a binary label image.
 
--nonselres  : Name of file to receive output brain label. The output is a binary label image, based on 
+-nonselres  : Name of file to receive output brain label. The output is a binary label image, based on
               previous-to-last processing step, ie. fused label before selection.  Occasionally, this
-              can be of better quality than the final label (saved with -result), in particular if the 
+              can be of better quality than the final label (saved with -result), in particular if the
               latter has implausible holes.
 
 -altresult  : Name of file to receive alternative output label.  The output is a binary label image.
@@ -41,12 +41,12 @@ Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz 
               will be deleted after processing. Set this flag to keep intermediate files.
 
 -atlas      : Atlas directory.
-              Has to contain images/full/m{1..n}.nii.gz, masks/full/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz 
-              Alternatively, it can point to a csv spreadsheet: first row should be base directory for atlas 
-              files. Entries should be relative to base directory. Each row refers to one atlas.  
-              Column 1: atlasname, Column 2: full image, Column 3: margin image, Column 4: transformation 
-              (.dof format) for positional normalization, Column 5: mask, Column 6: alternative mask. 
-              Atlasname should be unique across entries. 
+              Has to contain images/full/m{1..n}.nii.gz, masks/full/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz
+              Alternatively, it can point to a csv spreadsheet: first row should be base directory for atlas
+              files. Entries should be relative to base directory. Each row refers to one atlas.
+              Column 1: atlasname, Column 2: full image, Column 3: margin image, Column 4: transformation
+              (.dof format) for positional normalization, Column 5: mask, Column 6: alternative mask.
+              Atlasname should be unique across entries.
 
 -tpn        : Transformation for positional normalization or normalization to a reference space
 
@@ -125,7 +125,7 @@ echo "Writing brain label to $result"
 
 assess() {
     local glabels="$1"
-    if [ -e ref.nii.gz ] ; then 
+    if [ -e ref.nii.gz ] ; then
 	transformation "$glabels" assess.nii.gz -target ref.nii.gz >>noisy.log 2>&1
 	echo -e "${glabels}:\t\t"$(labelStats ref.nii.gz assess.nii.gz -false)
     fi
@@ -134,7 +134,7 @@ assess() {
 
 origin() {
     img="$1" ; shift
-    info $img | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6 
+    info $img | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6
 }
 
 
@@ -142,14 +142,14 @@ origin() {
 mkdir -p "$workdir"
 td=$(mktemp -d "$workdir/$(basename $0)-c$exclude.XXXXXX") || fatal "Could not create working directory in $workdir"
 export PINCRAM_WORKDIR=$td
-trap finish EXIT 
+trap finish EXIT
 cd "$td" || fatal "Error: cannot cd to temp directory $td"
 
 
 ### Atlas database read and check
 
 if [[ -d "$atlas" ]] ; then
-    if [[ -e "$atlas"/atlases.csv ]] ; then 
+    if [[ -e "$atlas"/atlases.csv ]] ; then
 	atlas="$atlas"/atlases.csv
     else
 	"$cdir"/atlas-csv-gen.sh "$atlas" atlases.csv
@@ -217,7 +217,7 @@ for level in $(seq 0 $maxlevel) ; do
 
     ### Prep datasets line by line in job.conf
     for srcindex in $(cat selection-$prevlevel.csv) ; do
-    
+
 	set -- $(head -n $[$srcindex+1] $atlas | tail -n 1 | tr ',' ' ')
 	atlasname=$1 ; shift
 	src=$atlasbase/$1 ; shift
@@ -229,7 +229,7 @@ for level in $(seq 0 $maxlevel) ; do
 	if [[ $level -ge 2 ]] ; then src=$mrg ; fi
 	srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
 	masktr="$PWD"/masktr-$thislevel-s$srcindex.nii.gz
-	dofin="$PWD"/reg-s$srcindex-$prevlevel.dof.gz 
+	dofin="$PWD"/reg-s$srcindex-$prevlevel.dof.gz
 	dofout="$PWD"/reg-s$srcindex-$thislevel.dof.gz
 	alttr="$PWD"/alttr-$thislevel-s$srcindex.nii.gz
 
@@ -251,7 +251,7 @@ for level in $(seq 0 $maxlevel) ; do
     sleeptime=$[$level*5+5]
     sleep $sleeptime
     until [[ $masksready -ge $minready ]]
-    do 
+    do
 	(( loopcount += 1 ))
 	[[ loopcount -gt 500 ]] && fatal "Waited too long for registration results"
 	prevmasksready=$masksready
@@ -268,12 +268,9 @@ for level in $(seq 0 $maxlevel) ; do
     ### Generate reference for atlas selection (fused from all)
 
     echo "Building reference atlas for selection at level $thislevel"
-    for i in masktr-$thislevel-s* ; do 
-	[[ -s $i ]] || mv $i failed-$i
-    done
     set -- masktr-$thislevel-s*
     thissize=$#
-    [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel" 
+    [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel"
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-sum.nii.gz
     tar cf masktr-$thislevel-n$thissize.tar $@
@@ -281,11 +278,11 @@ for level in $(seq 0 $maxlevel) ; do
 
     ### Generate intermediate target mask
 
-    seg_maths tmask-$thislevel-sum.nii.gz -thr 0 -bin tmask-$thislevel.nii.gz 
+    seg_maths tmask-$thislevel-sum.nii.gz -thr 0 -bin tmask-$thislevel.nii.gz
     assess tmask-$thislevel.nii.gz
 
 
-    ### Generate target margin mask for similarity ranking and apply 
+    ### Generate target margin mask for similarity ranking and apply
 
     seg_maths tmask-$thislevel-sum.nii.gz -abs -uthr 0.99 -bin emargin-$thislevel-dil.nii.gz
 
@@ -304,22 +301,22 @@ for level in $(seq 0 $maxlevel) ; do
     [ $nselected -lt 9 ] && nselected=7
     split -l $nselected ranking-$thislevel.csv
     mv xaa selection-$thislevel.csv
-    [ -e xab ] && cat x?? > unselected-$thislevel.csv 
+    [ -e xab ] && cat x?? > unselected-$thislevel.csv
     echo "Selected $nselected at $thislevel"
 
 
-    ### Build label from selection 
+    ### Build label from selection
     thissize=$#
-    [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel" 
+    [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel"
     head -n $thissize simm-$thislevel.csv | tr , ' ' | while read nmi s
     do
-        weight=$(echo '1 / ( '$maxweight' - 1 ) * ( '$nmi' - 1 )' | bc -l ) 
+        weight=$(echo '1 / ( '$maxweight' - 1 ) * ( '$nmi' - 1 )' | bc -l )
         echo $s,$weight >>weights-$thislevel.csv
-        seg_maths masktr-$thislevel-s$s.nii.gz -mul $weight masktr-$thislevel-weighted-s$s.nii.gz 
-    done 
+        seg_maths masktr-$thislevel-s$s.nii.gz -mul $weight masktr-$thislevel-weighted-s$s.nii.gz
+    done
     set -- masktr-$thislevel-weighted-s*.nii.gz
-    set -- $(echo $@ | sed 's/ / -add /g') 
-    seg_maths $@ tmask-$thislevel-sel-sum.nii.gz 
+    set -- $(echo $@ | sed 's/ / -add /g')
+    seg_maths $@ tmask-$thislevel-sel-sum.nii.gz
     seg_maths tmask-$thislevel-sel-sum.nii.gz -thr 0 -bin tmask-$thislevel-sel.nii.gz
     assess tmask-$thislevel-sel.nii.gz
     rm masktr-$thislevel-*.nii.gz
@@ -327,7 +324,7 @@ for level in $(seq 0 $maxlevel) ; do
 
     ### Data mask (skip on last iteration)
     [ $level -eq $maxlevel ] && continue
-    scalefactor=$(seg_stats tmask-$thislevel-sel-sum.nii.gz -p 100)
+    scalefactor=$(seg_stats tmask-$thislevel-sel-sum.nii.gz -r | cut -d ' ' -f 2)
     seg_maths tmask-$thislevel-sel-sum.nii.gz -div $scalefactor probmap-$thislevel.nii.gz
     seg_maths probmap-$thislevel.nii.gz -abs -uthr 0.99 dmargin-$thislevel.nii.gz
     padding target-full.nii.gz dmargin-$thislevel.nii.gz dmasked-$thislevel.nii.gz 0 0
@@ -344,8 +341,8 @@ echo -n "SI:" ; labelStats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -
 
 altc=0
 addswitch=
-cat selection-$thislevel.csv | while read -r item 
-do 
+cat selection-$thislevel.csv | while read -r item
+do
     alts=alttr-$thislevel-s$item.nii.gz
     if [[ -s $alts ]]
     then
