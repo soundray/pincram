@@ -278,12 +278,12 @@ for level in $(seq 0 $maxlevel) ; do
     thissize=$#
     [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel" 
     set -- $(echo $@ | sed 's/ / -add /g')
-    seg_maths $@ -div $thissize tmask-$thislevel-atlas.nii.gz
+    seg_maths $@ -div $thissize tmask-$thislevel-sum.nii.gz
     tar cf masktr-$thislevel-n$thissize.tar $@
 
     ### Generate target margin mask for similarity ranking and apply 
 
-    seg_maths tmask-$thislevel-atlas.nii.gz -thr 0.$thisthr -bin tmask-$thislevel.nii.gz 
+    seg_maths tmask-$thislevel-sum.nii.gz -thr 0.$thisthr -bin tmask-$thislevel.nii.gz 
     dilation tmask-$thislevel.nii.gz tmask-$thislevel-wide.nii.gz -iterations 1 >>noisy.log 2>&1
     erosion tmask-$thislevel.nii.gz tmask-$thislevel-narrow.nii.gz -iterations 1 >>noisy.log 2>&1
     subtract tmask-$thislevel-wide.nii.gz tmask-$thislevel-narrow.nii.gz emargin-$thislevel.nii.gz >>noisy.log 2>&1
@@ -314,16 +314,16 @@ for level in $(seq 0 $maxlevel) ; do
     thissize=$#
     [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel" 
     set -- $(echo $@ | sed 's/ / -add /g')
-    seg_maths $@ -div $thissize tmask-$thislevel-sel-atlas.nii.gz 
-    seg_maths tmask-$thislevel-sel-atlas.nii.gz -thr 0.$thisthr -bin tmask-$thislevel-sel.nii.gz 
+    seg_maths $@ -div $thissize tmask-$thislevel-sel-sum.nii.gz 
+    seg_maths tmask-$thislevel-sel-sum.nii.gz -thr 0.$thisthr -bin tmask-$thislevel-sel.nii.gz 
     assess tmask-$thislevel-sel.nii.gz
     rm masktr-$thislevel-*.nii.gz
     prevlevel=$thislevel
 
     ### Data mask (skip on last iteration)
     [ $level -eq $maxlevel ] && continue
-    seg_maths tmask-$thislevel-sel-atlas.nii.gz -thr 0.15 -bin tmask-$thislevel-wide.nii.gz
-    seg_maths tmask-$thislevel-sel-atlas.nii.gz -thr 0.99 -bin tmask-$thislevel-narrow.nii.gz
+    seg_maths tmask-$thislevel-sel-sum.nii.gz -thr 0.15 -bin tmask-$thislevel-wide.nii.gz
+    seg_maths tmask-$thislevel-sel-sum.nii.gz -thr 0.99 -bin tmask-$thislevel-narrow.nii.gz
     subtract tmask-$thislevel-wide.nii.gz tmask-$thislevel-narrow.nii.gz dmargin-$thislevel.nii.gz -no_norm >>noisy.log 2>&1
     dilation dmargin-$thislevel.nii.gz dmargin-$thislevel-dil.nii.gz -iterations ${dmaskdil[$level]} >>noisy.log 2>&1
     padding target-full.nii.gz dmargin-$thislevel-dil.nii.gz dmasked-$thislevel.nii.gz 0 0
@@ -341,8 +341,8 @@ echo -n "SI:" ; labelStats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -
 set -- $(cat selection-$thislevel.csv | while read -r item ; do echo alttr-$thislevel-s$item.nii.gz ; done) 
 #TODO: check for missing alttr-*
 set -- $(echo $@ | sed 's/ / -add /g')
-seg_maths $@ -div $thissize alt-$thislevel-sel-atlas.nii.gz
-seg_maths alt-$thislevel-sel-atlas.nii.gz -thr 0.$thisthr -bin alt-$thislevel-sel.nii.gz 
+seg_maths $@ -div $thissize alt-$thislevel-sel-sum.nii.gz
+seg_maths alt-$thislevel-sel-sum.nii.gz -thr 0.$thisthr -bin alt-$thislevel-sel.nii.gz 
 seg_maths alt-$thislevel-sel.nii.gz -mul tmask-$thislevel-sel.nii.gz andmask.nii.gz
 seg_maths alt-$thislevel-sel.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask.nii.gz
 
@@ -354,7 +354,7 @@ headertool output.nii.gz "$result" -origin $originalorigin
 headertool altoutput.nii.gz "$altresult" -origin $originalorigin
 
 if [ -n "$probresult" ] ; then
-    headertool tmask-$thislevel-sel-atlas.nii.gz "$probresult" -origin $originalorigin
+    headertool tmask-$thislevel-sel-sum.nii.gz "$probresult" -origin $originalorigin
 fi
 
 if [ -n "$nonselres" ] ; then
