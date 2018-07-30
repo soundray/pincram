@@ -301,6 +301,14 @@ for level in $(seq 0 $maxlevel) ; do
 	    echo $(evaluation target-full.nii.gz $srctr -Tp 0 -mask emargin-$thislevel-dil.nii.gz | grep NMI | cut -d ' ' -f 2 )",$srcindex"
 	fi
     done | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
+    tar cf srctr-$thislevel.tar srctr-$thislevel-s*.nii.gz ; rm srctr-$thislevel-s*.nii.gz
+    maxweight=$(head -n 1 simm-$thislevel.csv | cut -d , -f 1)
+    head -n $thissize simm-$thislevel.csv | tr , ' ' | while read nmi s
+    do
+	weight=$(echo '1 / ( '$maxweight' - 1 ) * ( '$nmi' - 1 )' | bc -l ) 
+	echo $s,$weight >>weights-$thislevel.csv
+	seg_maths masktr-$thislevel-s$s.nii.gz -mul $weight masktr-$thislevel-weighted-s$s.nii.gz 
+    done
     nselected=$[$thissize*$usepercent/100]
     [ $nselected -lt 9 ] && nselected=7
     split -l $nselected ranking-$thislevel.csv
