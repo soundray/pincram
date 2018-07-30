@@ -298,7 +298,7 @@ for level in $(seq 0 $maxlevel) ; do
     for srcindex in $(cat selection-$prevlevel.csv) ; do
 	srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
 	if [[ -e $srctr ]] && [[ ! -z $srctr ]] ; then
-	    echo $(evaluation emasked-$thislevel.nii.gz $srctr -Tp 0 -mask emargin-$thislevel-dil.nii.gz | grep NMI | cut -d ' ' -f 2 )",$srcindex"
+	    echo $(evaluation target-full.nii.gz $srctr -Tp 0 -mask emargin-$thislevel-dil.nii.gz | grep NMI | cut -d ' ' -f 2 )",$srcindex"
 	fi
     done | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
     nselected=$[$thissize*$usepercent/100]
