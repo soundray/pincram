@@ -325,15 +325,15 @@ for level in $(seq 0 $maxlevel) ; do
     seg_maths $@ tmask-$thislevel-sel-sum.nii.gz 
     seg_maths tmask-$thislevel-sel-sum.nii.gz -thr 0 -bin tmask-$thislevel-sel.nii.gz
     assess tmask-$thislevel-sel.nii.gz
-
+    rm masktr-$thislevel-*.nii.gz
+    prevlevel=$thislevel
 
     ### Data mask (skip on last iteration)
     [ $level -eq $maxlevel ] && continue
-    seg_maths tmask-$thislevel-sel-sum.nii.gz -thr 0.15 -bin tmask-$thislevel-wide.nii.gz
-    seg_maths tmask-$thislevel-sel-sum.nii.gz -thr 0.99 -bin tmask-$thislevel-narrow.nii.gz
-    subtract tmask-$thislevel-wide.nii.gz tmask-$thislevel-narrow.nii.gz dmargin-$thislevel.nii.gz -no_norm >>noisy.log 2>&1
-    dilation dmargin-$thislevel.nii.gz dmargin-$thislevel-dil.nii.gz -iterations ${dmaskdil[$level]} >>noisy.log 2>&1
-    padding target-full.nii.gz dmargin-$thislevel-dil.nii.gz dmasked-$thislevel.nii.gz 0 0
+    scalefactor=$(seg_stats tmask-$thislevel-sel-sum.nii.gz -p 100)
+    seg_maths tmask-$thislevel-sel-sum.nii.gz -div $scalefactor probmap-$thislevel.nii.gz
+    seg_maths probmap-$thislevel.nii.gz -abs -uthr 0.99 dmargin-$thislevel.nii.gz
+    padding target-full.nii.gz dmargin-$thislevel.nii.gz dmasked-$thislevel.nii.gz 0 0
     tgt="$PWD"/dmasked-$thislevel.nii.gz
 done
 
