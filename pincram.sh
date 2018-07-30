@@ -270,7 +270,7 @@ for level in $(seq 0 $maxlevel) ; do
     [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel"
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-sum.nii.gz
-    tar cf masktr-$thislevel-n$thissize.tar $@
+    tar -cf masktr-$thislevel-n$thissize.tar $@
 
 
     ### Generate intermediate target mask
@@ -292,7 +292,7 @@ for level in $(seq 0 $maxlevel) ; do
 	    echo $(evaluation target-full.nii.gz $srctr -Tp 0 -mask emargin-$thislevel-dil.nii.gz | grep NMI | cut -d ' ' -f 2 )",$srcindex"
 	fi
     done | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
-    tar cf srctr-$thislevel.tar srctr-$thislevel-s*.nii.gz ; rm srctr-$thislevel-s*.nii.gz
+    tar -cf srctr-$thislevel.tar srctr-$thislevel-s*.nii.gz ; rm srctr-$thislevel-s*.nii.gz
     maxweight=$(head -n 1 simm-$thislevel.csv | cut -d , -f 1)
     nselected=$[$thissize*$usepercent/100]
     [ $nselected -lt 9 ] && nselected=7
