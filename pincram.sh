@@ -279,7 +279,7 @@ for level in $(seq 0 $maxlevel) ; do
     [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel" 
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-atlas.nii.gz
-
+    tar cf masktr-$thislevel-n$thissize.tar $@
 
     ### Generate target margin mask for similarity ranking and apply 
 
@@ -317,6 +317,7 @@ for level in $(seq 0 $maxlevel) ; do
     seg_maths $@ -div $thissize tmask-$thislevel-sel-atlas.nii.gz 
     seg_maths tmask-$thislevel-sel-atlas.nii.gz -thr 0.$thisthr -bin tmask-$thislevel-sel.nii.gz 
     assess tmask-$thislevel-sel.nii.gz
+    rm masktr-$thislevel-*.nii.gz
     prevlevel=$thislevel
 
     ### Data mask (skip on last iteration)
