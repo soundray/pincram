@@ -345,13 +345,21 @@ echo -n "SI:" ; labelStats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -
 
 ### Generate alt (ICV) masks
 
-set -- $(cat selection-$thislevel.csv | while read -r item ; do echo alttr-$thislevel-s$item.nii.gz ; done) 
-#TODO: check for missing alttr-*
-set -- $(echo $@ | sed 's/ / -add /g')
-seg_maths $@ -div $thissize alt-$thislevel-sel-sum.nii.gz
-seg_maths alt-$thislevel-sel-sum.nii.gz -thr 0.$thisthr -bin alt-$thislevel-sel.nii.gz 
-seg_maths alt-$thislevel-sel.nii.gz -mul tmask-$thislevel-sel.nii.gz andmask.nii.gz
-seg_maths alt-$thislevel-sel.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask.nii.gz
+altc=0
+addswitch=
+cat selection-$thislevel.csv | while read -r item 
+do 
+    alts=alttr-$thislevel-s$item.nii.gz
+    if [[ -s $alts ]]
+    then
+        (( altc += 1 ))
+        seg_maths $alts -add 1 -mul 2 -sub 3 $addswitch altmsk-sum.nii.gz
+        addswitch="-add altmsk-sum.nii.gz"
+    fi
+done
+seg_maths altmsk-sum.nii.gz -div $altc -thr 0 -bin altmsk-bin.nii.gz
+seg_maths altmsk-bin.nii.gz -mul tmask-$thislevel-sel.nii.gz andmask.nii.gz
+seg_maths altmsk-bin.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask.nii.gz
 
 convert andmask.nii.gz output.nii.gz -uchar >>noisy.log 2>&1
 convert ormask.nii.gz altoutput.nii.gz -uchar >>noisy.log 2>&1
@@ -361,7 +369,7 @@ headertool output.nii.gz "$result" -origin $originalorigin
 headertool altoutput.nii.gz "$altresult" -origin $originalorigin
 
 if [ -n "$probresult" ] ; then
-    headertool tmask-$thislevel-sel-sum.nii.gz "$probresult" -origin $originalorigin
+    headertool probmap-$thislevel.nii.gz "$probresult" -origin $originalorigin
 fi
 
 if [ -n "$nonselres" ] ; then
