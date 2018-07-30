@@ -280,6 +280,9 @@ for level in $(seq 0 $maxlevel) ; do
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-sum.nii.gz
     tar cf masktr-$thislevel-n$thissize.tar $@
+    seg_maths tmask-$thislevel-sum.nii.gz -thr 0 -bin tmask-$thislevel.nii.gz 
+    assess tmask-$thislevel.nii.gz
+
 
     ### Generate target margin mask for similarity ranking and apply 
 
