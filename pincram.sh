@@ -196,9 +196,6 @@ levelname[1]="affine"
 levelname[2]="nonrigid"
 levelname[3]="none"
 
-dmaskdil[0]=3
-dmaskdil[1]=3
-
 
 ### Initialize first loop
 
