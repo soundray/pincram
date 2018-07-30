@@ -267,10 +267,10 @@ for level in $(seq 0 $maxlevel) ; do
     echo "Building reference atlas for selection at level $thislevel"
     set -- masktr-$thislevel-s*
     thissize=$#
+    tar -cf masktr-$thislevel-n$thissize.tar $@
     [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel"
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-sum.nii.gz
-    tar -cf masktr-$thislevel-n$thissize.tar $@
 
 
     ### Generate intermediate target mask
@@ -293,6 +293,7 @@ for level in $(seq 0 $maxlevel) ; do
 	fi
     done | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
     tar -cf srctr-$thislevel.tar srctr-$thislevel-s*.nii.gz ; rm srctr-$thislevel-s*.nii.gz
+    tar -cf alttr-$thislevel.tar alttr-$thislevel-s*.nii.gz
     maxweight=$(head -n 1 simm-$thislevel.csv | cut -d , -f 1)
     nselected=$[$thissize*$usepercent/100]
     [ $nselected -lt 9 ] && nselected=7
@@ -348,6 +349,7 @@ do
         addswitch="-add altmsk-sum.nii.gz"
     fi
 done
+rm alttr-*.nii.gz
 seg_maths altmsk-sum.nii.gz -div $altc -thr 0 -bin altmsk-bin.nii.gz
 seg_maths altmsk-bin.nii.gz -mul tmask-$thislevel-sel.nii.gz andmask.nii.gz
 seg_maths altmsk-bin.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask.nii.gz
