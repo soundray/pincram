@@ -48,7 +48,7 @@ Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz 
               (.dof format) for positional normalization, Column 5: mask, Column 6: alternative mask. 
               Atlasname should be unique across entries. 
 
--tpn        : Rigid transformation for positional normalization of the target image (optional)
+-tpn        : Transformation for positional normalization or normalization to a reference space
 
 -thresholds : Triplet of values setting per-level segmentation thresholds.  Default is 56 60 60.  Smaller
               values result in more generous output masks.
@@ -70,7 +70,7 @@ tgt=$(normalpath "$1") ; shift
 test -e $tgt || fatal "No image found -- $t"
 
 . "$cdir"/pincram.rc
-tpn="$cdir"/neutral.dof.gz
+tpn=
 result=
 nonselres=
 altresult=
@@ -104,8 +104,6 @@ do
     esac
     shift
 done
-
-[ -e "$tpn" ] || fatal "Target positional normalization does not exist"
 
 [ -n "$result" ] || fatal "Result filename not set (e.g. -result brain-mask.nii.gz)"
 
@@ -163,9 +161,14 @@ atlasbase=$(head -n 1 $atlas)
 set -- $(head -n 2 $atlas | tail -n 1 | tr ',' ' ')
 shift
 while [[ $# -gt 0 ]] ; do
-[[ -e $atlasbase/$1 ]] || fatal "Atlas error ($atlasbase/$1 does not exist)"
-shift
+    [[ -e $atlasbase/$1 ]] || fatal "Atlas error ($atlasbase/$1 does not exist)"
+    shift
 done
+
+if [[ -z $tpn ]] ; then
+    refspace=$atlasbase/refspace/img.nii.gz
+    [[ -e $refspace ]] || fatal "No reference space declared ($refspace) and -tpn not provided"
+fi
 
 atlasmax=$[$(cat $atlas | wc -l)-1]
 [[ "$atlasn" =~ ^[0-9]+$ ]] || atlasn=$atlasmax
@@ -180,11 +183,15 @@ originalorigin=$(origin "$tgt")
 headertool "$tgt" target-full.nii.gz -origin 0 0 0
 convert "$tgt" target-full.nii.gz -float
 [ -e "$ref" ] && cp "$ref" ref.nii.gz && chmod +w ref.nii.gz
+if [[ -n $refspace ]] ; then
+    areg2 $refspace target-full.nii.gz -dofout tpn.dof.gz 2>&1 >noisy.log
+    tpn=$td/tpn.dof.gz
+fi
 
 
 ### Arrays
 
-levelname[0]="rigid"
+levelname[0]="coarse"
 levelname[1]="affine"
 levelname[2]="nonrigid"
 levelname[3]="none"
