@@ -61,7 +61,7 @@ idx0=$(printf '%04g' $[$idx-1])
 cp x$idx0 thischunk
 rm x????
 
-cat thischunk | while read params
+cat thischunk | sort -R | while read params
 do
     set -- $(echo $params)
 
