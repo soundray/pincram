@@ -159,9 +159,7 @@ Maximum length of steps           = 2
 
 EOF
 
-	dofcombine "$spn" "$tpn" pre.dof.gz -invert2
-	echo rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg 
-	rreg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg 
+	dofcombine "$spn" "$tpn" dofout.dof.gz -invert2
     fi
     
     if [[ $lev == 1 ]] ; then
