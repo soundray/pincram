@@ -46,12 +46,10 @@ Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz 
               files. Entries should be relative to base directory. Each row refers to one atlas.
               Column 1: atlasname, Column 2: full image, Column 3: margin image, Column 4: transformation
               (.dof format) for positional normalization, Column 5: mask, Column 6: alternative mask.
-              Atlasname should be unique across entries.
+              Atlasname should be unique across entries. Note: mask voxels should range from -1 (background)
+              to 1 (foreground); discrete or probabilistic maps are both allowed.
 
 -tpn        : Transformation for positional normalization or normalization to a reference space
-
--thresholds : Triplet of values setting per-level segmentation thresholds.  Default is 56 60 60.  Smaller
-              values result in more generous output masks.
 
 -atlasn     : Use a maximum of N atlases.  By default, all available are used.
 
@@ -92,7 +90,6 @@ do
 	-atlas)           atlas=$(normalpath "$2"); shift;;
 	-workdir)       workdir=$(normalpath "$2"); shift;;
 	-ref)               ref=$(normalpath "$2"); shift;;
-	-thresholds)     thr[0]=$2 ; shift ; thr[1]=$2 ; shift ; thr[2]=$2 ; shift ;;
 	-savewd)         savewd=1 ;;
 	-atlasn)         atlasn="$2"; shift;;
 	-levels)         levels="$2"; shift;;
