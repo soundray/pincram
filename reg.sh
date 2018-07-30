@@ -257,11 +257,15 @@ EOF
 	nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
     fi
 
-    transformation "$msk" masktr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
-    transformation "$src" srctr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
-    transformation "$alt" alttr.nii.gz -linear -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
-    cp masktr.nii.gz "$masktr"
-    cp srctr.nii.gz "$srctr"   
-    cp alttr.nii.gz "$alttr"   
-    cp dofout.dof.gz "$dofout"
+    tempmasktr=$(echo "$masktr" | tr '/' '_')
+    tempsrctr=$(echo "$srctr" | tr '/' '_')
+    tempalttr=$(echo "$alttr" | tr '/' '_')
+    tempdof=$(echo "$dofout" | tr '/' '_')
+    transformation "$msk" $tempmasktr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
+    transformation "$src" $tempsrctr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
+    transformation "$alt" $tempalttr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
+    mv dofout.dof.gz $tempdof
 done
+
+for i in _* ; do mv $i $(echo $i | tr '_' '/') ; done
+
