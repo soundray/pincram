@@ -88,6 +88,11 @@ do
 	shift
     done
 
+    if [[ -e $masktr ]] ; then
+	msg "Result file $masktr exists"
+	continue 
+    fi
+
     if [[ -n "$PINCRAM_USE_MIRTK" ]] ; then
 	if [[ $lev == 0 ]] ; then
 	    invert-dof "$tpn" tpninv.dof
