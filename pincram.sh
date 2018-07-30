@@ -303,12 +303,6 @@ for level in $(seq 0 $maxlevel) ; do
     done | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
     tar cf srctr-$thislevel.tar srctr-$thislevel-s*.nii.gz ; rm srctr-$thislevel-s*.nii.gz
     maxweight=$(head -n 1 simm-$thislevel.csv | cut -d , -f 1)
-    head -n $thissize simm-$thislevel.csv | tr , ' ' | while read nmi s
-    do
-	weight=$(echo '1 / ( '$maxweight' - 1 ) * ( '$nmi' - 1 )' | bc -l ) 
-	echo $s,$weight >>weights-$thislevel.csv
-	seg_maths masktr-$thislevel-s$s.nii.gz -mul $weight masktr-$thislevel-weighted-s$s.nii.gz 
-    done
     nselected=$[$thissize*$usepercent/100]
     [ $nselected -lt 9 ] && nselected=7
     split -l $nselected ranking-$thislevel.csv
@@ -318,16 +312,20 @@ for level in $(seq 0 $maxlevel) ; do
 
 
     ### Build label from selection 
-    set -- $(cat selection-$thislevel.csv | while read -r item ; do echo masktr-$thislevel-s$item.nii.gz ; done)
-     #TODO: check for missing masktr-*
     thissize=$#
     [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel" 
-    set -- $(echo $@ | sed 's/ / -add /g')
-    seg_maths $@ -div $thissize tmask-$thislevel-sel-sum.nii.gz 
-    seg_maths tmask-$thislevel-sel-sum.nii.gz -thr 0.$thisthr -bin tmask-$thislevel-sel.nii.gz 
+    head -n $thissize simm-$thislevel.csv | tr , ' ' | while read nmi s
+    do
+        weight=$(echo '1 / ( '$maxweight' - 1 ) * ( '$nmi' - 1 )' | bc -l ) 
+        echo $s,$weight >>weights-$thislevel.csv
+        seg_maths masktr-$thislevel-s$s.nii.gz -mul $weight masktr-$thislevel-weighted-s$s.nii.gz 
+    done 
+    set -- masktr-$thislevel-weighted-s*.nii.gz
+    set -- $(echo $@ | sed 's/ / -add /g') 
+    seg_maths $@ tmask-$thislevel-sel-sum.nii.gz 
+    seg_maths tmask-$thislevel-sel-sum.nii.gz -thr 0 -bin tmask-$thislevel-sel.nii.gz
     assess tmask-$thislevel-sel.nii.gz
-    rm masktr-$thislevel-*.nii.gz
-    prevlevel=$thislevel
+
 
     ### Data mask (skip on last iteration)
     [ $level -eq $maxlevel ] && continue
