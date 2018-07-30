@@ -1,6 +1,21 @@
 #!/bin/bash
 
-### For new installation: adapt paths to dependencies
+#####
+# Parallelization architecture / middleware
+#####
+
+# PINCRAM_ARCH=bash
+# PINCRAM_ARCH=ge
+PINCRAM_ARCH=pbs
+export PINCRAM_ARCH
+# export PINCRAM_QUEUE=myqueue ## Gets added to qsub call with -q option
+# export PINCRAM_CHUNKSIZE=1 ## Number of registrations per array subjob
+
+# export PINCRAM_USE_MIRTK=1 ## Port to MIRTK not usable yet
+
+#####
+# For new installation: adapt paths to dependencies
+#####
 
 PATH=/***PATH/TO***/niftyreg/bin:$PATH
 
@@ -19,19 +34,10 @@ PATH=$FSLDIR/bin:$PATH
 export FSLDIR 
 
 ### FSL -- installation from .deb package
-. /etc/fsl/fsl.sh
+#. /etc/fsl/fsl.sh
 
 export PATH LD_LIBRARY_PATH
 
-# Parallelization architecture / middleware
-# PINCRAM_ARCH=bash
-# PINCRAM_ARCH=ge
-PINCRAM_ARCH=pbs
-export PINCRAM_ARCH
-# export PINCRAM_QUEUE=myqueue ## Gets added to qsub call with -q option
-# export PINCRAM_CHUNKSIZE=1 ## Number of registrations per array subjob
-
-# export PINCRAM_USE_MIRTK=1 ## Port to MIRTK not usable yet
 
 #####
 # Functions etc. -- no adjustments normally necessary below this line
