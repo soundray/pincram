@@ -75,7 +75,7 @@ altresult=
 probresult=
 par=1
 ref=none
-exclude=0
+doublesub=0
 atlas=$(normalpath "$cdir"/atlas)
 atlasn=0
 workdir=$PWD
@@ -91,6 +91,7 @@ do
 	-workdir)       workdir=$(normalpath "$2"); shift;;
 	-ref)               ref=$(normalpath "$2"); shift;;
 	-savewd)         savewd=1 ;;
+        -doublesub)   doublesub=1 ;;
 	-atlasn)         atlasn="$2"; shift;;
 	-levels)         levels="$2"; shift;;
 	-par)               par="$2"; shift;;
@@ -236,6 +237,7 @@ for level in $(seq 0 $maxlevel) ; do
     ### Launch parallel registrations
     cp job.conf job-$thislevel.conf
     "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level >>$td/noisy.log 2>&1
+    [[ $doublesub -eq 1 ]] && "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level
 
 
     ### Monitor incoming results and wait
