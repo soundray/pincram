@@ -351,6 +351,9 @@ do
         addswitch="-add altmsk-sum.nii.gz"
     fi
 done
+
+tar -cf reg-dofs.dof.gz reg*.dof.gz ; rm reg*.dof.gz
+
 rm alttr-*.nii.gz
 seg_maths altmsk-sum.nii.gz -div $altc -thr 0 -bin altmsk-bin.nii.gz
 seg_maths altmsk-bin.nii.gz -mul tmask-$thislevel-sel.nii.gz andmask.nii.gz
