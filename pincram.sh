@@ -224,7 +224,13 @@ for level in $(seq 0 $maxlevel) ; do
 	msk=$atlasbase/$1 ; shift
 	alt=$atlasbase/$1 ; shift
 
-	if [[ $level -ge 2 ]] ; then src=$mrg ; fi
+	if [[ $level -ge 2 ]] ; then 
+	    mrggen=mrg-s$srcindex.nii.gz
+	    if [[ ! -e $mrggen ]] ; then
+		seg_maths $mrg -bin -mul $src $mrggen
+		src=$mrggen
+	    fi
+	fi
 	srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
 	masktr="$PWD"/masktr-$thislevel-s$srcindex.nii.gz
 	dofin="$PWD"/reg-s$srcindex-$prevlevel.dof.gz
@@ -352,8 +358,6 @@ do
     fi
 done
 
-tar -cf reg-dofs.dof.gz reg*.dof.gz ; rm reg*.dof.gz
-
 rm alttr-*.nii.gz
 seg_maths altmsk-sum.nii.gz -div $altc -thr 0 -bin altmsk-bin.nii.gz
 seg_maths altmsk-bin.nii.gz -mul tmask-$thislevel-sel.nii.gz andmask.nii.gz
@@ -362,7 +366,13 @@ seg_maths altmsk-bin.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask.nii.gz
 convert andmask.nii.gz output.nii.gz -uchar >>noisy.log 2>&1
 convert ormask.nii.gz altoutput.nii.gz -uchar >>noisy.log 2>&1
 
+## Compare output mask with reference
 assess output.nii.gz | tee -a assess.log
+
+
+## Package and delete transformations
+tar -cf reg-dofs.dof.gz reg*.dof.gz ; rm reg*.dof.gz
+
 
 ### Apply original origin settings and copy output
 headertool output.nii.gz "$result" -origin $originalorigin
