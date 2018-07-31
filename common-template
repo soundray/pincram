@@ -13,6 +13,8 @@ export PINCRAM_ARCH
 
 # export PINCRAM_USE_MIRTK=1 ## Port to MIRTK not usable yet
 
+# export $PINCRAM_PBS_OPTION="-l place=free:shared" ## Per-system options
+
 #####
 # For new installation: adapt paths to dependencies
 #####

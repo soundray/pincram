@@ -60,7 +60,7 @@ case $arch in
 	fi
 	jobn=$[$atlasn / $chunkn + 1]
 	[[ -n "$PINCRAM_QUEUE" ]] && qu="-q $PINCRAM_QUEUE"
-	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec -l place=free:shared -j oe -N reg${level}n$chunkn $qu $script)
+	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec "$PINCRAM_PBS_OPTION" -j oe -N reg${level}n$chunkn $qu $script)
 	msg JobID: $pbsjob
 	;;
     bash)
