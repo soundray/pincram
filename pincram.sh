@@ -16,24 +16,15 @@ cat <<EOF
 Copyright (C) 2012-2018 Rolf A. Heckemann
 Web site: http://www.soundray.org/pincram
 
-Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz \\
-                       [-probresult probresult.nii.gz] \\
+Usage: $0 <input> <options> <-result result-dir> \\
                        [-workdir working_directory] [-savewd] \\
                        [-atlas atlas_directory | -atlas file.csv] [-atlasn N ] \\
                        [-levels {1..3}] [-par max_parallel_jobs] [-ref ref.nii.gz]
 
 <input>     : T1-weighted magnetic resonance image in gzipped NIfTI format.
 
--result     : Name of file to receive output brain label. The output is a binary label image.
-
--nonselres  : Name of file to receive output brain label. The output is a binary label image, based on
-              previous-to-last processing step, ie. fused label before selection.  Occasionally, this
-              can be of better quality than the final label (saved with -result), in particular if the
-              latter has implausible holes.
-
--altresult  : Name of file to receive alternative output label.  The output is a binary label image.
-
--probresult : (Optional) name of file to receive output, a probabilistic label image.
+-result     : Name of directory to receive output files. Will be created if it does not exist. Contents
+              will be overwritten if they exist.
 
 -workdir    : Working directory. Default is present working directory. Should be a network-accessible location
 
@@ -44,10 +35,12 @@ Usage: $0 <input> <options> <-result result.nii.gz> -altresult altresult.nii.gz 
               Has to contain images/full/m{1..n}.nii.gz, masks/full/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz
               Alternatively, it can point to a csv spreadsheet: first row should be base directory for atlas
               files. Entries should be relative to base directory. Each row refers to one atlas.
-              Column 1: atlasname, Column 2: full image, Column 3: margin image, Column 4: transformation
-              (.dof format) for positional normalization, Column 5: mask, Column 6: alternative mask.
+              Column 1: atlasname, Column 2: full image, Column 3: margin mask, Column 4: transformation
+              (.dof format) for positional normalization, Column 5: prime mask, Column 6: alternative mask.
               Atlasname should be unique across entries. Note: mask voxels should range from -1 (background)
-              to 1 (foreground); discrete or probabilistic maps are both allowed.
+              to 1 (foreground); discrete or probabilistic maps are both allowed. Prime masks are typically
+              parenchyma masks and alternative masks are intracranial volume masks, but this can be swapped.
+              The probability output is calculated on the prime (Column 5) input.
 
 -tpn        : Transformation for positional normalization or normalization to a reference space
 
@@ -70,9 +63,6 @@ test -e $tgt || fatal "No image found -- $t"
 . "$cdir"/pincram.rc
 tpn=
 result=
-nonselres=
-altresult=
-probresult=
 par=1
 ref=none
 doublesub=0
@@ -84,9 +74,6 @@ do
     case "$1" in
 	-tpn)               tpn=$(normalpath "$2"); shift;;
 	-result)         result=$(normalpath "$2"); shift;;
-	-nonselres)   nonselres=$(normalpath "$2"); shift;;
-	-altresult)   altresult=$(normalpath "$2"); shift;;
-	-probresult) probresult=$(normalpath "$2"); shift;;
 	-atlas)           atlas=$(normalpath "$2"); shift;;
 	-workdir)       workdir=$(normalpath "$2"); shift;;
 	-ref)               ref=$(normalpath "$2"); shift;;
@@ -103,9 +90,9 @@ do
     shift
 done
 
-[ -n "$result" ] || fatal "Result filename not set (e.g. -result brain-mask.nii.gz)"
-
-[ -n "$altresult" ] || fatal "Alternative result filename not set (e.g. -altresult icv-mask.nii.gz)"
+[ -n "$result" ] || fatal "Result directory name not set (e.g. -result pincram-masks)"
+mkdir -p "$result" 
+[[ -d "$result" ]] || fatal "Failed to create directory for result output ($result)"
 
 [ -e "$atlas" ] || fatal "Atlas directory or file does not exist"
 
@@ -362,17 +349,17 @@ do
         addswitch="-add altmsk-sum.nii.gz"
     fi
 done
-
 rm alttr-*.nii.gz
+
+## Combine mask types to create wide (ICV) and narrow (parenchymal) masks
 seg_maths altmsk-sum.nii.gz -div $altc -thr 0 -bin altmsk-bin.nii.gz
 seg_maths altmsk-bin.nii.gz -mul tmask-$thislevel-sel.nii.gz andmask.nii.gz
 seg_maths altmsk-bin.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask.nii.gz
-
-convert andmask.nii.gz output.nii.gz -uchar >>noisy.log 2>&1
-convert ormask.nii.gz altoutput.nii.gz -uchar >>noisy.log 2>&1
+convert andmask.nii.gz parenchyma1.nii.gz -uchar >>noisy.log 2>&1
+convert ormask.nii.gz icv1.nii.gz -uchar >>noisy.log 2>&1
 
 ## Compare output mask with reference
-assess output.nii.gz | tee -a assess.log
+assess parenchyma1.nii.gz | tee -a assess.log
 
 
 ## Package and delete transformations
@@ -380,15 +367,9 @@ tar -cf reg-dofs.tar reg*.dof.gz ; rm reg*.dof.gz
 
 
 ### Apply original origin settings and copy output
-headertool output.nii.gz "$result" -origin $originalorigin
-headertool altoutput.nii.gz "$altresult" -origin $originalorigin
+headertool parenchyma1.nii.gz "$result"/parenchyma.nii.gz -origin $originalorigin
+headertool icv1.nii.gz "$result"/icv.nii.gz -origin $originalorigin
+headertool probmap-$thislevel.nii.gz "$result"/prime-probmap.nii.gz -origin $originalorigin
 
-if [ -n "$probresult" ] ; then
-    headertool probmap-$thislevel.nii.gz "$probresult" -origin $originalorigin
-fi
-
-if [ -n "$nonselres" ] ; then
-    headertool tmask-$thislevel.nii.gz "$nonselres" -origin $originalorigin
-fi
 
 exit 0
