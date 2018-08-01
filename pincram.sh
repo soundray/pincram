@@ -321,9 +321,9 @@ for level in $(seq 0 $maxlevel) ; do
     prevlevel=$thislevel
 
     ### Data mask (skip on last iteration)
-    [ $level -eq $maxlevel ] && continue
     scalefactor=$(seg_stats tmask-$thislevel-sel-sum.nii.gz -r | cut -d ' ' -f 2)
     seg_maths tmask-$thislevel-sel-sum.nii.gz -div $scalefactor probmap-$thislevel.nii.gz
+    [ $level -eq $maxlevel ] && continue
     seg_maths probmap-$thislevel.nii.gz -abs -uthr 0.99 dmargin-$thislevel.nii.gz
     padding target-full.nii.gz dmargin-$thislevel.nii.gz dmasked-$thislevel.nii.gz 0 0
     tgt="$PWD"/dmasked-$thislevel.nii.gz
