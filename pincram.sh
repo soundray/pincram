@@ -376,7 +376,7 @@ assess output.nii.gz | tee -a assess.log
 
 
 ## Package and delete transformations
-tar -cf reg-dofs.dof.gz reg*.dof.gz ; rm reg*.dof.gz
+tar -cf reg-dofs.tar reg*.dof.gz ; rm reg*.dof.gz
 
 
 ### Apply original origin settings and copy output
