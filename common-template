@@ -16,6 +16,14 @@ export PINCRAM_ARCH
 export $PINCRAM_PBS_OPTION="-l place=free" ## Per-system options
 
 #####
+# Execution parameter
+#####
+
+export PINCRAM_PROCEED_PCT=100 ## Minimum % ratio of expected atlas transformations on which to continue
+                               ## Trades off reproducibility and accuracy against speed
+                               ## Reduce for rapid testing or when jobs are executed unreliably
+
+#####
 # For new installation: adapt paths to dependencies
 #####
 

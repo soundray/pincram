@@ -118,6 +118,12 @@ maxlevel=$[$levels-1]
 echo "Extracting $tgt"
 echo "Writing brain label to $result"
 
+if [[ -n $PINCRAM_PROCEED_PCT ]] 
+then 
+    minpct=$PINCRAM_PROCEED_PCT 
+else
+    minpct=100
+fi
 
 ### Functions
 
@@ -250,8 +256,7 @@ for level in $(seq 0 $maxlevel) ; do
 
     loopcount=0
     masksready=0
-    minready=$[$nselected*90/100] # Speedup at the cost of reproducibility. Comment out next line.
-    # minready=$nselected
+    minready=$[$nselected*$minpct/100] 
     echo -n $($cdir/spark 0 $masksready $nselected | cut -c 2)
     sleeptime=$[$level*5+5]
     sleep $sleeptime
