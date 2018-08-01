@@ -225,7 +225,7 @@ for level in $(seq 0 $maxlevel) ; do
 	alt=$atlasbase/$1 ; shift
 
 	if [[ $level -ge 2 ]] ; then 
-	    mrggen=mrg-s$srcindex.nii.gz
+	    mrggen=$td/mrg-s$srcindex.nii.gz
 	    if [[ ! -e $mrggen ]] ; then
 		seg_maths $mrg -bin -mul $src $mrggen
 		src=$mrggen
