@@ -251,7 +251,7 @@ for level in $(seq 0 $maxlevel) ; do
     until [[ $masksready -ge $minready ]]
     do
 	(( loopcount += 1 ))
-	[[ loopcount -gt 500 ]] && fatal "Waited too long for registration results"
+#	[[ loopcount -gt 500 ]] && fatal "Waited too long for registration results"
 	prevmasksready=$masksready
 	masksready=$( ls masktr-$thislevel-s* 2>/dev/null | wc -l )
 	[[ $masksready -gt $prevmasksready ]] && loopcount=0

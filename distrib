@@ -49,8 +49,6 @@ case $arch in
 	;;
     pbs)
 	cd "$PINCRAM_WORKDIR"
-	levelplus=$[$level+4]
-	tsec=$[$levelplus**3*60]
 	atlasn=$(cat $datalist | wc -l)
 	if [[ -n $PINCRAM_CHUNKSIZE ]] 
 	then
@@ -58,7 +56,10 @@ case $arch in
 	else
 	    chunkn=$[$[$level-3]**2]
 	fi
-	jobn=$[$atlasn / $chunkn + 1]
+	chfactor=$chunkn ; [[ $chunkn -gt $atlasn ]] && chfactor=$atlasn
+	levelplus=$[$level + 3]
+	tsec=$[$levelplus ** 5 * $atlasn / $chfactor]
+	jobn=$[$atlasn / $chfactor + 1]
 	[[ -n "$PINCRAM_QUEUE" ]] && qu="-q $PINCRAM_QUEUE"
 	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec "$PINCRAM_PBS_OPTION" -j oe -N reg${level}n$chunkn $qu $script)
 	msg JobID: $pbsjob
