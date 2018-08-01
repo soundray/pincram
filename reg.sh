@@ -117,47 +117,6 @@ do
     fi
     
     if [[ $lev == 0 ]] ; then
-	cat >lev0.reg << EOF
-#
-# Registration parameters
-#
-
-No. of resolution levels          = 2
-No. of bins                       = 64
-Epsilon                           = 0.0001
-Padding value                     = -1
-Source padding value              = -1
-Similarity measure                = NMI
-Interpolation mode                = Linear
-
-#
-# Registration parameters for resolution level 1
-#
-
-Resolution level                  = 1
-Target blurring (in mm)           = 1
-Target resolution (in mm)         = 2 2 2
-Source blurring (in mm)           = 1
-Source resolution (in mm)         = 2 2 2
-No. of iterations                 = 40
-Minimum length of steps           = 0.01
-Maximum length of steps           = 1
-
-#
-# Registration parameters for resolution level 2
-#
-
-Resolution level                  = 2
-Target blurring (in mm)           = 2
-Target resolution (in mm)         = 5 5 5
-Source blurring (in mm)           = 2
-Source resolution (in mm)         = 5 5 5
-No. of iterations                 = 40
-Minimum length of steps           = 0.01
-Maximum length of steps           = 2
-
-EOF
-
 	dofcombine "$spn" "$tpn" dofout.dof.gz -invert2
     fi
     
