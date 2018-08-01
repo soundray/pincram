@@ -78,6 +78,7 @@ do
 	    -dofout)         dofout=$(normalpath "$2"); shift;;
 	    -spn)               spn=$(normalpath "$2"); shift;;
 	    -tpn)               tpn=$(normalpath "$2"); shift;;
+	    -tmargin)       tmargin=$(normalpath "$2"); shift;;
 	    -lev)               lev="$2"; shift;;
 	    --) shift; break;;
             -*)
@@ -164,8 +165,8 @@ Maximum length of steps           = 1
 
 EOF
 
-	echo areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
-	areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
+	echo areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg -mask $tmargin
+	areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg -mask $tmargin
     fi
     
     if [[ $lev == 2 ]] ; then
@@ -211,8 +212,8 @@ Maximum length of steps           = 2
 
 EOF
 
-	echo nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
-	nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
+	echo nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg -mask $tmargin
+	nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg -mask $tmargin
     fi
 
     tempmasktr=$(echo "$masktr" | tr '/' '_')

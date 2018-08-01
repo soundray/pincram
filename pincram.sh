@@ -130,6 +130,7 @@ origin() {
 
 
 ### Core working directory
+
 mkdir -p "$workdir"
 td=$(mktemp -d "$workdir/$(basename $0)-c$exclude.XXXXXX") || fatal "Could not create working directory in $workdir"
 export PINCRAM_WORKDIR=$td
@@ -172,7 +173,7 @@ echo "$commandline" >commandline.log
 
 originalorigin=$(origin "$tgt")
 headertool "$tgt" target-full.nii.gz -origin 0 0 0
-convert "$tgt" target-full.nii.gz -float
+convert target-full.nii.gz target-full.nii.gz -float
 [ -e "$ref" ] && cp "$ref" ref.nii.gz && chmod +w ref.nii.gz
 if [[ -n $refspace ]] ; then
     areg2 $refspace target-full.nii.gz -dofout tpn.dof.gz 2>&1 >noisy.log
@@ -180,7 +181,7 @@ if [[ -n $refspace ]] ; then
 fi
 
 
-### Arrays
+### Array
 
 levelname[0]="coarse"
 levelname[1]="affine"
@@ -191,6 +192,7 @@ levelname[3]="none"
 ### Initialize first loop
 
 tgt="$PWD"/target-full.nii.gz
+tmg=$tgt
 level=0
 prevlevel=init
 seq 1 $atlasn >selection-$prevlevel.csv
@@ -206,7 +208,7 @@ for level in $(seq 0 $maxlevel) ; do
     echo "Level $thislevel"
     [[ -e $td/job.conf ]] && rm $td/job.conf
 
-    ### Prep datasets line by line in job.conf
+    ## Prep datasets line by line in job.conf
     for srcindex in $(cat selection-$prevlevel.csv) ; do
 
 	set -- $(head -n $[$srcindex+1] $atlas | tail -n 1 | tr ',' ' ')
@@ -230,17 +232,16 @@ for level in $(seq 0 $maxlevel) ; do
 	dofout="$PWD"/reg-s$srcindex-$thislevel.dof.gz
 	alttr="$PWD"/alttr-$thislevel-s$srcindex.nii.gz
 
-	echo "-tgt $tgt" "-src $src" "-srctr $srctr" "-msk $msk" "-masktr $masktr" "-alt $alt" "-alttr $alttr" "-dofin $dofin" "-dofout $dofout" "-spn $spn" "-tpn $tpn" "-lev $level" >>$td/job.conf
+	echo "-tgt $tgt" "-src $src" "-srctr $srctr" "-msk $msk" "-masktr $masktr" "-alt $alt" "-alttr $alttr" "-dofin $dofin" "-dofout $dofout" "-spn $spn" "-tpn $tpn" "-lev $level -tmargin $tmg" >>$td/job.conf
     done
 
-    ### Launch parallel registrations
+    ## Launch parallel registrations
     cp job.conf job-$thislevel.conf
     "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level >>$td/noisy.log 2>&1
     [[ $doublesub -eq 1 ]] && "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level
 
 
-    ### Monitor incoming results and wait
-
+    ## Monitor incoming results and wait
     loopcount=0
     masksready=0
     minready=$[$nselected*$minpct/100] 
@@ -262,8 +263,7 @@ for level in $(seq 0 $maxlevel) ; do
     [[ $masksready -lt $nselected ]] && sleep 30  # Extra sleep if we're going on an incomplete mask set
 
 
-    ### Generate reference for atlas selection (fused from all)
-
+    ## Generate reference for atlas selection (fused from all)
     echo "Building reference atlas for selection at level $thislevel"
     set -- masktr-$thislevel-s*
     thissize=$#
@@ -273,18 +273,16 @@ for level in $(seq 0 $maxlevel) ; do
     seg_maths $@ -div $thissize tmask-$thislevel-sum.nii.gz
 
 
-    ### Generate intermediate target mask
-
+    ## Generate intermediate target mask
     seg_maths tmask-$thislevel-sum.nii.gz -thr 0 -bin tmask-$thislevel.nii.gz
     assess tmask-$thislevel.nii.gz | tee -a assess.log
 
 
-    ### Generate target margin mask for similarity ranking and apply
-
+    ## Generate target margin mask for similarity ranking and apply
     seg_maths tmask-$thislevel-sum.nii.gz -abs -uthr 0.99 -bin emargin-$thislevel-dil.nii.gz
 
 
-    ### Selection
+    ## Selection
     echo "Selecting"
     for srcindex in $(cat selection-$prevlevel.csv) ; do
 	srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
@@ -303,7 +301,7 @@ for level in $(seq 0 $maxlevel) ; do
     echo "Selected $nselected at $thislevel"
 
 
-    ### Build label from selection
+    ## Build label from selection
     thissize=$#
     [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel"
     head -n $thissize simm-$thislevel.csv | tr , ' ' | while read nmi s
@@ -320,13 +318,13 @@ for level in $(seq 0 $maxlevel) ; do
     rm masktr-$thislevel-*.nii.gz
     prevlevel=$thislevel
 
-    ### Data mask (skip on last iteration)
+
+    ## Target data mask (skip on last iteration)
     scalefactor=$(seg_stats tmask-$thislevel-sel-sum.nii.gz -r | cut -d ' ' -f 2)
     seg_maths tmask-$thislevel-sel-sum.nii.gz -div $scalefactor probmap-$thislevel.nii.gz
     [ $level -eq $maxlevel ] && continue
     seg_maths probmap-$thislevel.nii.gz -abs -uthr 0.99 dmargin-$thislevel.nii.gz
-    padding target-full.nii.gz dmargin-$thislevel.nii.gz dmasked-$thislevel.nii.gz 0 0
-    tgt="$PWD"/dmasked-$thislevel.nii.gz
+    tmg="$PWD"/dmargin-$thislevel.nii.gz
 done
 
 
@@ -351,22 +349,28 @@ do
 done
 rm alttr-*.nii.gz
 
-## Combine mask types to create wide (ICV) and narrow (parenchymal) masks
+
+### Combine mask types to create wide (ICV) and narrow (parenchymal) masks
+
 seg_maths altmsk-sum.nii.gz -div $altc -thr 0 -bin altmsk-bin.nii.gz
 seg_maths altmsk-bin.nii.gz -mul tmask-$thislevel-sel.nii.gz andmask.nii.gz
 seg_maths altmsk-bin.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask.nii.gz
 convert andmask.nii.gz parenchyma1.nii.gz -uchar >>noisy.log 2>&1
 convert ormask.nii.gz icv1.nii.gz -uchar >>noisy.log 2>&1
 
-## Compare output mask with reference
+
+### Compare output mask with reference
+
 assess parenchyma1.nii.gz | tee -a assess.log
 
 
-## Package and delete transformations
+### Package and delete transformations
+
 tar -cf reg-dofs.tar reg*.dof.gz ; rm reg*.dof.gz
 
 
 ### Apply original origin settings and copy output
+
 headertool parenchyma1.nii.gz "$result"/parenchyma.nii.gz -origin $originalorigin
 headertool icv1.nii.gz "$result"/icv.nii.gz -origin $originalorigin
 headertool probmap-$thislevel.nii.gz "$result"/prime-probmap.nii.gz -origin $originalorigin
