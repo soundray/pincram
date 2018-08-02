@@ -56,9 +56,9 @@ case $arch in
 	else
 	    chunkn=$[$[$level-3]**2]
 	fi
-	chfactor=$chunkn ; [[ $chunkn -gt $atlasn ]] && chfactor=$atlasn
 	levelplus=$[$level + 3]
-	tsec=$[$levelplus ** 5 * $atlasn / $chfactor]
+	tsec=$[$levelplus ** 5 * $atlasn]
+	chfactor=$chunkn ; [[ $chunkn -gt $atlasn ]] && chfactor=$atlasn
 	jobn=$[$atlasn / $chfactor + 1]
 	[[ -n "$PINCRAM_QUEUE" ]] && qu="-q $PINCRAM_QUEUE"
 	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec "$PINCRAM_PBS_OPTION" -j oe -N reg${level}n$chunkn $qu $script)
