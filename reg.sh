@@ -116,8 +116,8 @@ do
 		-dofin "$dofin" -dofout dofout.dof \
 		-model FFD \
 		-par "Background value" 0 \
-		-par "No. of resolution levels" 1 \
-		-par "Control point spacing [mm]" 4 \
+		-par "No. of resolution levels" 2 \
+		-par "Control point spacing [mm]" 3 \
 		-par "Image interpolation" "Fast linear" \
 		-mask "$tmargin" 
 	fi
