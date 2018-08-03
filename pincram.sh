@@ -16,9 +16,9 @@ cat <<EOF
 Copyright (C) 2012-2018 Rolf A. Heckemann
 Web site: http://www.soundray.org/pincram
 
-Usage: $0 <input> <options> <-result result-dir> \\
-                       [-workdir working_directory] [-savewd] \\
-                       [-atlas atlas_directory | -atlas file.csv] [-atlasn N ] \\
+Usage: $0 <input> <options> <-result result-dir/> \\
+                       [-workdir working_directory/] [-savewd] [-pickup previous_dir/]\\
+                       [-atlas atlas_directory/ | -atlas file.csv] [-atlasn N ] \\
                        [-levels {1..3}] [-par max_parallel_jobs] [-ref ref.nii.gz]
 
 <input>     : T1-weighted magnetic resonance image in gzipped NIfTI format.
@@ -26,15 +26,21 @@ Usage: $0 <input> <options> <-result result-dir> \\
 -result     : Name of directory to receive output files. Will be created if it does not exist. Contents
               will be overwritten if they exist.
 
--workdir    : Working directory. Default is present working directory. Should be a network-accessible location
+-workdir    : Base working directory. Default is present working directory. Should be a network-accessible 
+              location. On each run, a uniquely named directory for intermediate results is generated.
+
+-pickup     : Intermediate results directory from a previous run -- work will be continued. Overrides 
+              -workdir setting if given. Implies -savewd. Previous run must be compatible (same -atlas,
+              same <input>, etc.), else results are unpredictable.
 
 -savewd     : (Optional) By default, the temporary directory under the working directory
               will be deleted after processing. Set this flag to keep intermediate files.
 
 -atlas      : Atlas directory.
-              Has to contain images/full/m{1..n}.nii.gz, masks/full/m{1..n}.nii.gz and posnorm/m{1..n}.dof.gz
-              Alternatively, it can point to a csv spreadsheet: first row should be base directory for atlas
-              files. Entries should be relative to base directory. Each row refers to one atlas.
+              Has to contain images/full/m{1..n}.nii.gz, masks/full/m{1..n}.nii.gz, posnorm/m{1..n}.dof.gz,
+              and refspace/img.nii.gz (unless -tpn given).
+              Alternatively, -atlas can point to a csv spreadsheet: first row should be base directory for
+              atlas files. Entries should be relative to base directory. Each row refers to one atlas.
               Column 1: atlasname, Column 2: full image, Column 3: margin mask, Column 4: transformation
               (.dof format) for positional normalization, Column 5: prime mask, Column 6: alternative mask.
               Atlasname should be unique across entries. Note: mask voxels should range from -1 (background)
@@ -69,6 +75,7 @@ doublesub=0
 atlas=$(normalpath "$cdir"/atlas)
 atlasn=0
 workdir=$PWD
+pickup=
 while [ $# -gt 0 ]
 do
     case "$1" in
@@ -76,6 +83,7 @@ do
 	-result)         result=$(normalpath "$2"); shift;;
 	-atlas)           atlas=$(normalpath "$2"); shift;;
 	-workdir)       workdir=$(normalpath "$2"); shift;;
+	-pickup)         pickup=$(normalpath "$2"); shift;;
 	-ref)               ref=$(normalpath "$2"); shift;;
 	-savewd)         savewd=1 ;;
         -doublesub)   doublesub=1 ;;
@@ -131,11 +139,30 @@ origin() {
 
 ### Core working directory
 
-mkdir -p "$workdir"
-td=$(mktemp -d "$workdir/$(basename $0)-c$exclude.XXXXXX") || fatal "Could not create working directory in $workdir"
+if [[ -n "$pickup" ]] 
+then
+    [[ -d $pickup ]] || fatal "Pickup directory $pickup does not exist" 
+    td=$pickup
+    savewd=1
+    cd "$td" || fatal "Error: cannot cd to temp directory $td"
+    ## Unpack old results if existing
+    touch 0.tar
+    set -- *.tar
+    shift
+    while [[ $# -gt 0 ]] 
+    do
+	tar xf $1 ; rm $1 ; shift
+    done
+    touch 0.log ; rm *.log
+    touch weights0.csv ; rm weights*.csv
+else
+    mkdir -p "$workdir"
+    td=$(mktemp -d "$workdir/$(basename $0).XXXXXX") || fatal "Could not create working directory in $workdir"
+fi
 export PINCRAM_WORKDIR=$td
 trap finish EXIT
 cd "$td" || fatal "Error: cannot cd to temp directory $td"
+msg "Working in directory $td"
 
 
 ### Atlas database read and check
@@ -172,14 +199,16 @@ echo "$commandline" >commandline.log
 ### Target preparation
 
 originalorigin=$(origin "$tgt")
-headertool "$tgt" target-full.nii.gz -origin 0 0 0
-convert target-full.nii.gz target-full.nii.gz -float
-[ -e "$ref" ] && cp "$ref" ref.nii.gz && chmod +w ref.nii.gz
-if [[ -n $refspace ]] ; then
-    areg2 $refspace target-full.nii.gz -dofout tpn.dof.gz 2>&1 >noisy.log
-    tpn=$td/tpn.dof.gz
+if [[ -z $pickup ]] 
+then 
+    headertool "$tgt" target-full.nii.gz -origin 0 0 0
+    convert target-full.nii.gz target-full.nii.gz -float
+    [ -e "$ref" ] && cp "$ref" ref.nii.gz && chmod +w ref.nii.gz
+    if [[ -n $refspace ]] ; then
+	areg2 $refspace target-full.nii.gz -dofout tpn.dof.gz 2>&1 >noisy.log
+	tpn=$td/tpn.dof.gz
+    fi
 fi
-
 
 ### Array
 
@@ -206,7 +235,7 @@ for level in $(seq 0 $maxlevel) ; do
     thislevel=${levelname[$level]}
     thisthr=${thr[$level]}
     echo "Level $thislevel"
-    [[ -e $td/job.conf ]] && rm $td/job.conf
+    cat /dev/null >job.conf
 
     ## Prep datasets line by line in job.conf
     for srcindex in $(cat selection-$prevlevel.csv) ; do
@@ -232,14 +261,19 @@ for level in $(seq 0 $maxlevel) ; do
 	dofout="$PWD"/reg-s$srcindex-$thislevel.dof.gz
 	alttr="$PWD"/alttr-$thislevel-s$srcindex.nii.gz
 
-	echo "-tgt $tgt" "-src $src" "-srctr $srctr" "-msk $msk" "-masktr $masktr" "-alt $alt" "-alttr $alttr" "-dofin $dofin" "-dofout $dofout" "-spn $spn" "-tpn $tpn" "-lev $level -tmargin $tmg" >>$td/job.conf
+	if [[ ! -s $masktr ]]
+	then
+	    echo "-tgt $tgt" "-src $src" "-srctr $srctr" "-msk $msk" "-masktr $masktr" "-alt $alt" "-alttr $alttr" "-dofin $dofin" "-dofout $dofout" "-spn $spn" "-tpn $tpn" "-lev $level -tmargin $tmg" >>$td/job.conf
+	fi
     done
 
     ## Launch parallel registrations
     cp job.conf job-$thislevel.conf
-    "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level >>$td/noisy.log 2>&1
-    [[ $doublesub -eq 1 ]] && "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level
-
+    if [[ -s job.conf ]] 
+    then
+	"$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level >>noisy.log 2>&1
+	[[ $doublesub -eq 1 ]] && "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level >>noisy.log 2>&1
+    fi
 
     ## Monitor incoming results and wait
     loopcount=0
@@ -247,7 +281,6 @@ for level in $(seq 0 $maxlevel) ; do
     minready=$[$nselected*$minpct/100] 
     echo -n $($cdir/spark 0 $masksready $nselected | cut -c 2)
     sleeptime=$[$level*5+5]
-    sleep $sleeptime
     until [[ $masksready -ge $minready ]]
     do
 	(( loopcount += 1 ))

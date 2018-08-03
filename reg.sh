@@ -94,36 +94,52 @@ do
     fi
 
     if [[ -n "$PINCRAM_USE_MIRTK" ]] ; then
+
 	if [[ $lev == 0 ]] ; then
 	    invert-dof "$tpn" tpninv.dof
-	    compose-dofs "$spn" tpninv.dof pre.dof
-	    register $tgt $src -model Rigid -dofin pre.dof -dofout dofout.dof
-	fi
-	if [[ $lev == 1 ]] ; then
-	    register "$tgt" "$src" -model Affine -dofin "$dofin" -dofout dofout.dof 
-	fi
-	if [[ $lev == 2 ]] ; then
-	    register "$tgt" "$src" -model FFD -dofin "$dofin" -dofout dofout.dof 
+	    compose-dofs "$spn" tpninv.dof dofout.dof
+	    # register $tgt $src -model Rigid -dofin pre.dof -dofout dofout.dof
 	fi
 
-	transform-image "$msk" masktr.nii.gz -interp "Linear" -dofin dofout.dof -target "$tgt" || fatal "Failure at masktr"
-	transform-image "$src" srctr.nii.gz -interp "Linear"  -dofin dofout.dof -target "$tgt"  || fatal "Failure at srctr"
-	transform-image "$alt" alttr.nii.gz -interp "Linear"  -dofin dofout.dof -target "$tgt"  || fatal "Failure at alttr"
-	cp masktr.nii.gz "$masktr"
-	cp srctr.nii.gz "$srctr"   
-	cp alttr.nii.gz "$alttr"   
+	if [[ $lev == 1 ]] ; then
+	    register "$tgt" "$src" \
+		-dofin "$dofin" -dofout dofout.dof \
+		-model Affine \
+		-par "Background value" 0 \
+		-par "No. of resolution levels" 2 \
+		-par "Image interpolation" "Fast linear" \
+		-mask "$tmargin" 
+	fi
+
+	if [[ $lev == 2 ]] ; then
+	    register "$tgt" "$src" \
+		-dofin "$dofin" -dofout dofout.dof \
+		-model FFD \
+		-par "Background value" 0 \
+		-par "No. of resolution levels" 1 \
+		-par "Control point spacing [mm]" 4 \
+		-par "Image interpolation" "Fast linear" \
+		-mask "$tmargin" 
+	fi
+
+	tempmasktr=$(echo "$masktr" | tr '/' '_')
+	tempsrctr=$(echo "$srctr" | tr '/' '_')
+	tempalttr=$(echo "$alttr" | tr '/' '_')
+	tempdof=$(echo "$dofout" | tr '/' '_')
+	transform-image "$msk" $tempmasktr -interp "Linear" -Sp -1 -dofin dofout.dof -target "$tgt" || fatal "Failure at masktr"
+	transform-image "$src" $tempsrctr -interp "Linear" -Sp -1 -dofin dofout.dof -target "$tgt"  || fatal "Failure at srctr"
+	transform-image "$alt" $tempalttr -interp "Linear" -Sp -1 -dofin dofout.dof -target "$tgt"  || fatal "Failure at alttr"
 	gzip dofout.dof
-	cp dofout.dof.gz "$dofout"
-	exit 0
-    fi
+	mv dofout.dof.gz $tempdof
+    else
+
+        if [[ $lev == 0 ]] ; then
+	    dofcombine "$spn" "$tpn" dofout.dof.gz -invert2
+	fi
     
-    if [[ $lev == 0 ]] ; then
-	dofcombine "$spn" "$tpn" dofout.dof.gz -invert2
-    fi
-    
-    if [[ $lev == 1 ]] ; then
+	if [[ $lev == 1 ]] ; then
 	
-	cat >lev1.reg << EOF
+	    cat >lev1.reg << EOF
 
 #
 # Registration parameters
@@ -165,12 +181,12 @@ Maximum length of steps           = 1
 
 EOF
 
-	echo areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg -mask $tmargin
-	areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg -mask $tmargin
-    fi
+	    echo areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg -mask $tmargin
+	    areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg -mask $tmargin
+	fi
     
-    if [[ $lev == 2 ]] ; then
-	cat >lev2.reg << EOF
+	if [[ $lev == 2 ]] ; then
+	    cat >lev2.reg << EOF
 
 #
 # Non-rigid registration parameters
@@ -212,18 +228,19 @@ Maximum length of steps           = 2
 
 EOF
 
-	echo nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg -mask $tmargin
-	nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg -mask $tmargin
-    fi
+	    echo nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg -mask $tmargin
+	    nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg -mask $tmargin
+	fi
 
-    tempmasktr=$(echo "$masktr" | tr '/' '_')
-    tempsrctr=$(echo "$srctr" | tr '/' '_')
-    tempalttr=$(echo "$alttr" | tr '/' '_')
-    tempdof=$(echo "$dofout" | tr '/' '_')
-    transformation "$msk" $tempmasktr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
-    transformation "$src" $tempsrctr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
-    transformation "$alt" $tempalttr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
-    mv dofout.dof.gz $tempdof
+	tempmasktr=$(echo "$masktr" | tr '/' '_')
+	tempsrctr=$(echo "$srctr" | tr '/' '_')
+	tempalttr=$(echo "$alttr" | tr '/' '_')
+	tempdof=$(echo "$dofout" | tr '/' '_')
+	transformation "$msk" $tempmasktr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
+	transformation "$src" $tempsrctr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
+	transformation "$alt" $tempalttr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
+	mv dofout.dof.gz $tempdof
+    fi
 done
 
 for i in _* ; do mv $i $(echo $i | tr '_' '/') ; done
