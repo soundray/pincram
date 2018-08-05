@@ -364,7 +364,7 @@ for level in $(seq 0 $maxlevel) ; do
     scalefactor=$(seg_stats tmask-$thislevel-sel-sum.nii.gz -r | cut -d ' ' -f 2)
     seg_maths tmask-$thislevel-sel-sum.nii.gz -div $scalefactor probmap-$thislevel.nii.gz
     [ $level -eq $maxlevel ] && continue
-    seg_maths probmap-$thislevel.nii.gz -abs -uthr 0.99 dmargin-$thislevel.nii.gz
+    seg_maths probmap-$thislevel.nii.gz -abs -uthr 0.99 dmargin-$thislevel.nii.gz ## Tested 0.9: worse
     tmg="$PWD"/dmargin-$thislevel.nii.gz
 done
 
