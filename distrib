@@ -7,7 +7,6 @@ cdir=$(normalpath "$cdir")
 pn=$0
 prog=$(basename "$pn")
 comline="$cdir/$prog $*"
-echo $comline
 
 # parameters
 datalist=
@@ -42,6 +41,7 @@ level=$ilevel
 [[ -e $datalist ]] || fatal "Data list $datalist not found"
 datalist=$(normalpath $datalist)
 
+
 export LEVEL=$level 
 case $arch in
     ge)
@@ -57,12 +57,30 @@ case $arch in
 	    chunkn=$[$[$level-3]**2]
 	fi
 	levelplus=$[$level + 3]
-	tsec=$[$levelplus ** 5 * $atlasn]
+	tsec=$[$levelplus ** 5 * $chunkn]
+	csec=$[$levelplus ** 4 * $chunkn]
 	chfactor=$chunkn ; [[ $chunkn -gt $atlasn ]] && chfactor=$atlasn
 	jobn=$[$atlasn / $chfactor + 1]
 	[[ -n "$PINCRAM_QUEUE" ]] && qu="-q $PINCRAM_QUEUE"
-	pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec "$PINCRAM_PBS_OPTION" -j oe -N reg${level}n$chunkn $qu $script)
-	msg JobID: $pbsjob
+
+	job_state=nosuch
+	set -- $(ls distrib-$level-* 2>/dev/null)
+	[[ -n $1 ]] && eval $(qstat -f $(echo $1 | cut -d '-' -f 3) | grep job_state | tr -d '[:blank:]')
+	case $job_state in
+	    B|Q)
+		echo "Job state is $job_state -- continue waiting" >&2
+		;;
+	    nosuch)
+		[[ -n $1 ]] && rm distrib-$level-*
+		pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec "$PINCRAM_PBS_OPTION" -j oe -N reg${level}n$chunkn $qu $script)
+		touch distrib-$level-$pbsjob
+		echo "Job submitted" >&2
+		;;
+	    *)
+		fatal "PBS error"
+		;;
+	esac
+	echo $csec
 	;;
     bash)
 	[[ $jobs == "100%" ]] && jobs=$(nproc --all)

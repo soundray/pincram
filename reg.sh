@@ -44,6 +44,7 @@ case "$PINCRAM_ARCH" in
     pbs)
 	idx=$PBS_ARRAY_INDEX
 	wd=$PBS_O_WORKDIR
+	jobid=$PBS_JOBID
 	if [[ -n "$PINCRAM_CHUNKSIZE" ]] 
 	    then chunkn="$PINCRAM_CHUNKSIZE"
 	else
@@ -243,5 +244,5 @@ EOF
     fi
 done
 
-for i in _* ; do mv $i $(echo $i | tr '_' '/') ; done
+ls _* >/dev/null 2>&1 && for i in _* ; do mv $i $(echo $i | tr '_' '/') ; done
 

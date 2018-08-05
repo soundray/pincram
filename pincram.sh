@@ -71,7 +71,6 @@ tpn=
 result=
 par=1
 ref=none
-doublesub=0
 atlas=$(normalpath "$cdir"/atlas)
 atlasn=0
 workdir=$PWD
@@ -86,7 +85,6 @@ do
 	-pickup)         pickup=$(normalpath "$2"); shift;;
 	-ref)               ref=$(normalpath "$2"); shift;;
 	-savewd)         savewd=1 ;;
-        -doublesub)   doublesub=1 ;;
 	-atlasn)         atlasn="$2"; shift;;
 	-levels)         levels="$2"; shift;;
 	-par)               par="$2"; shift;;
@@ -271,8 +269,10 @@ for level in $(seq 0 $maxlevel) ; do
     cp job.conf job-$thislevel.conf
     if [[ -s job.conf ]] 
     then
-	"$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level >>noisy.log 2>&1
-	[[ $doublesub -eq 1 ]] && "$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level >>noisy.log 2>&1
+	csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level)
+	etasec=$(( $(date +%s) + csec ))
+	eta=$(date -d "@$etasec")
+	msg "Minimum estimated processing time level $thislevel: $csec seconds, earliest estimated finishing time: $eta" 
     fi
 
     ## Monitor incoming results and wait
@@ -284,13 +284,21 @@ for level in $(seq 0 $maxlevel) ; do
     until [[ $masksready -ge $minready ]]
     do
 	(( loopcount += 1 ))
-#	[[ loopcount -gt 500 ]] && fatal "Waited too long for registration results"
+	[[ loopcount -gt 500 ]] && fatal "Waited too long for registration results"
 	prevmasksready=$masksready
 	masksready=$( ls masktr-$thislevel-s* 2>/dev/null | wc -l )
 	[[ $masksready -gt $prevmasksready ]] && loopcount=0
 	[[ $masksready -eq 1 ]] && masksready=0
 	echo -n $($cdir/spark 0 $masksready $nselected | cut -c 2)
 	sleep $sleeptime
+	if [[ $(date +%s ) -gt $etasec ]] 
+	then
+	    echo
+	    csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level)
+	    etasec=$(( $(date +%s) + csec ))
+	    eta=$(date -d "@$etasec")
+	    msg "Extended processing time. Estimated finishing time now: $eta" 
+	fi
     done
     echo
     [[ $masksready -lt $nselected ]] && sleep 30  # Extra sleep if we're going on an incomplete mask set
