@@ -272,7 +272,7 @@ for level in $(seq 0 $maxlevel) ; do
 	csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level)
 	etasec=$(( $(date +%s) + csec ))
 	eta=$(date -d "@$etasec")
-	msg "Minimum estimated processing time level $thislevel: $csec seconds, earliest estimated finishing time: $eta" 
+	msg "Minimum estimated processing time level $thislevel: $csec seconds, first job check at $eta" 
     fi
 
     ## Monitor incoming results and wait
@@ -297,7 +297,7 @@ for level in $(seq 0 $maxlevel) ; do
 	    csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level)
 	    etasec=$(( $(date +%s) + csec ))
 	    eta=$(date -d "@$etasec")
-	    msg "Extended processing time. Estimated finishing time now: $eta" 
+	    msg "Extended processing time. Next job status check at $eta" 
 	fi
     done
     echo
