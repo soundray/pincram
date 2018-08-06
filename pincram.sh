@@ -108,8 +108,9 @@ maxlevel=$[$levels-1]
 
 [[ "$par" =~ ^[0-9]+$ ]] || par=1
 
-echo "Extracting $tgt"
-echo "Writing brain label to $result"
+msg $(date)
+msg "Extracting $tgt"
+msg "Writing brain label to $result"
 
 if [[ -n $PINCRAM_PROCEED_PCT ]] 
 then 
@@ -191,6 +192,7 @@ atlasmax=$[$(cat $atlas | wc -l)-1]
 [[ "$atlasn" =~ ^[0-9]+$ ]] || atlasn=$atlasmax
 [[ "$atlasn" -gt $atlasmax || "$atlasn" -eq 0 ]] && atlasn=$atlasmax
 
+msg "$commandline"
 echo "$commandline" >commandline.log
 
 
@@ -232,7 +234,7 @@ usepercent=$(echo $nselected | awk '{ printf "%.0f", 100*(8/$1)^(1/3) } ')
 for level in $(seq 0 $maxlevel) ; do
     thislevel=${levelname[$level]}
     thisthr=${thr[$level]}
-    echo "Level $thislevel"
+    msg "Level $thislevel"
     cat /dev/null >job.conf
 
     ## Prep datasets line by line in job.conf
@@ -301,11 +303,12 @@ for level in $(seq 0 $maxlevel) ; do
 	fi
     done
     echo
+    msg "Individual mask transformations: $masksready / $minready / $nselected"
     [[ $masksready -lt $nselected ]] && sleep 30  # Extra sleep if we're going on an incomplete mask set
 
 
     ## Generate reference for atlas selection (fused from all)
-    echo "Building reference atlas for selection at level $thislevel"
+    msg "Building reference atlas for selection at level $thislevel"
     set -- masktr-$thislevel-s*
     thissize=$#
     tar -cf masktr-$thislevel-n$thissize.tar $@
@@ -324,7 +327,7 @@ for level in $(seq 0 $maxlevel) ; do
 
 
     ## Selection
-    echo "Selecting"
+    msg "Selecting"
     for srcindex in $(cat selection-$prevlevel.csv) ; do
 	srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
 	if [[ -e $srctr ]] && [[ ! -z $srctr ]] ; then
@@ -339,7 +342,7 @@ for level in $(seq 0 $maxlevel) ; do
     split -l $nselected ranking-$thislevel.csv
     mv xaa selection-$thislevel.csv
     [ -e xab ] && cat x?? > unselected-$thislevel.csv
-    echo "Selected $nselected at $thislevel"
+    msg "Selected $nselected at $thislevel"
 
 
     ## Build label from selection
@@ -371,7 +374,7 @@ done
 
 ### Calculate success index (SI)
 
-echo -n "SI:" ; labelStats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -false
+echo -n "SI:" ; labelStats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -false | tee si.csv
 
 
 ### Generate alt (ICV) masks
@@ -416,5 +419,6 @@ headertool parenchyma1.nii.gz "$result"/parenchyma.nii.gz -origin $originalorigi
 headertool icv1.nii.gz "$result"/icv.nii.gz -origin $originalorigin
 headertool probmap-$thislevel.nii.gz "$result"/prime-probmap.nii.gz -origin $originalorigin
 
-
+msg $(date)
+msg "End processing"
 exit 0
