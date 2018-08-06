@@ -108,7 +108,7 @@ maxlevel=$[$levels-1]
 
 [[ "$par" =~ ^[0-9]+$ ]] || par=1
 
-msg $(date)
+msg "$(date)"
 msg "Extracting $tgt"
 msg "Writing brain label to $result"
 
@@ -419,6 +419,6 @@ headertool parenchyma1.nii.gz "$result"/parenchyma.nii.gz -origin $originalorigi
 headertool icv1.nii.gz "$result"/icv.nii.gz -origin $originalorigin
 headertool probmap-$thislevel.nii.gz "$result"/prime-probmap.nii.gz -origin $originalorigin
 
-msg $(date)
+msg "$(date)"
 msg "End processing"
 exit 0
