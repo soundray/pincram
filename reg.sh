@@ -2,7 +2,12 @@
 
 #PBS -l select=1:ncpus=1:mem=7900mb
 
-pn=$(basename $0)
+cdir=$(dirname "$0")
+. $cdir/common
+. $cdir/functions
+cdir=$(normalpath "$cdir")
+
+pn=$(basename "$0")
 commandline="$pn $*"
 
 set -e   # Terminate script at first error

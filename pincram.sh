@@ -2,6 +2,7 @@
 
 cdir=$(dirname "$0")
 . $cdir/common
+. $cdir/functions
 cdir=$(normalpath "$cdir")
 
 pn=$(basename $0)
