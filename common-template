@@ -9,14 +9,17 @@
 export PINCRAM_ARCH=pbs
 # export PINCRAM_QUEUE=myqueue ## Gets added to qsub call with -q option
 # export PINCRAM_CHUNKSIZE=1 ## Number of registrations per array subjob
+export $PINCRAM_PBS_OPTION="-l place=free" ## Per-system options
+
 
 #####
 # To use MIRTK in place of IRTK (experimental, results slightly inferior)
 #####
 
 # export PINCRAM_USE_MIRTK=1 
+#PATH=/***PATH/TO***/mirtk/build-gcc/lib/tools:$PATH
+#LD_LIBRARY_PATH=/***PATH/TO***/mirtk/build-gcc/lib:$LD_LIBRARY_PATH
 
-export $PINCRAM_PBS_OPTION="-l place=free" ## Per-system options
 
 #####
 # Execution parameter
