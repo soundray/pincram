@@ -1,5 +1,3 @@
-#!/bin/bash
-
 msg () {
     for msgline
     do echo "$pn: $msgline" >&2
@@ -29,5 +27,3 @@ finish () {
     [[ $savewd -eq 1 ]] || rm -rf "$td"
     exit
 }
-
-set -e   # Terminate script at first error

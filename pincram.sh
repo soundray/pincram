@@ -266,6 +266,7 @@ for level in $(seq 0 $maxlevel) ; do
 	fi
     done
 
+
     ## Launch parallel registrations
     cp job.conf job-$thislevel.conf
     if [[ -s job.conf ]] 
@@ -275,6 +276,7 @@ for level in $(seq 0 $maxlevel) ; do
 	eta=$(date -d "@$etasec")
 	msg "Minimum estimated processing time level $thislevel: $csec seconds, first job check at $eta" 
     fi
+
 
     ## Monitor incoming results and wait
     loopcount=0
