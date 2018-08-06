@@ -5,31 +5,6 @@
 pn=$(basename $0)
 commandline="$pn $*"
 
-msg () {
-    for msgline
-    do echo "$pn: $msgline" >&2
-    done
-}
-
-fatal () { msg "$@"; exit 1; }
-
-normalpath () {
-    local s=$1
-    [[ $s == ${s::400} ]] || fatal "Option path too long"
-    [[ $s == ${s//[^[:print:]]/} ]] || fatal "Non-printables in path"
-    dir=$(dirname "$1")
-    bas=$(basename "$1")
-    echo $(cd $dir && pwd)/$bas
-}
-
-tempdir () {
-    : ${TMPDIR:="/tmp"}
-    tdbase=$TMPDIR/$USER
-    test -e $tdbase || mkdir -p $tdbase
-    td=$(mktemp -d $tdbase/$(basename $0).XXXXXX) || fatal "Could not create temp dir in $tdbase"
-    echo $td
-}
-
 set -e   # Terminate script at first error
 
 level=$LEVEL
