@@ -67,7 +67,6 @@ fatal "Parameter error"
 tgt=$(normalpath "$1") ; shift
 test -e $tgt || fatal "No image found -- $t"
 
-. "$cdir"/pincram.rc
 tpn=
 result=
 par=1
@@ -234,7 +233,6 @@ usepercent=$(echo $nselected | awk '{ printf "%.0f", 100*(8/$1)^(1/3) } ')
 
 for level in $(seq 0 $maxlevel) ; do
     thislevel=${levelname[$level]}
-    thisthr=${thr[$level]}
     msg "Level $thislevel"
     cat /dev/null >job.conf
 
