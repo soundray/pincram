@@ -32,10 +32,15 @@ esac
 td=$(tempdir)
 cd $td
 
-split -a 4 -l $chunkn -d $wd/job.conf
-idx0=$(printf '%04g' $[$idx-1])
-cp x$idx0 thischunk
-rm x????
+if [[ $idx -gt 0 ]] 
+then
+    split -a 4 -l $chunkn -d $wd/job.conf
+    idx0=$(printf '%04g' $[$idx-1])
+    cp x$idx0 thischunk
+    rm x????
+else
+    cp $wd/job.conf thischunk
+fi
 
 cat thischunk | sort -R | while read params
 do
