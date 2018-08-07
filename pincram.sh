@@ -274,7 +274,7 @@ for level in $(seq 0 $maxlevel) ; do
 	csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level)
 	etasec=$(( $(date +%s) + csec ))
 	eta=$(date -d "@$etasec")
-	msg "Minimum estimated processing time level $thislevel: $csec seconds, first job check at $eta" 
+	msg "Minimum estimated processing time level $thislevel: $csec seconds, first job status check at $eta" 
     fi
 
 
@@ -304,14 +304,15 @@ for level in $(seq 0 $maxlevel) ; do
 	fi
     done
     echo
-    msg "Individual mask transformations: $masksready / $minready / $nselected"
+    msg "Minimum number of mask transformations calculated"
     [[ $masksready -lt $nselected ]] && sleep 30  # Extra sleep if we're going on an incomplete mask set
 
 
     ## Generate reference for atlas selection (fused from all)
-    msg "Building reference atlas for selection at level $thislevel"
     set -- masktr-$thislevel-s*
     thissize=$#
+    msg "Individual mask transformations: selected $nselected, minimum $minready, completed $thissize"
+    msg "Building reference atlas for selection at level $thislevel"
     tar -cf masktr-$thislevel-n$thissize.tar $@
     [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel"
     set -- $(echo $@ | sed 's/ / -add /g')
