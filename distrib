@@ -74,7 +74,8 @@ case $arch in
 		;;
 	    nosuch)
 		[[ -n $1 ]] && rm distrib-$level-*
-		pbsjob=$(qsub -V -J 1-$jobn -l walltime=$tsec "$PINCRAM_PBS_OPTION" -j oe -N reg${level}n$chunkn $qu $script)
+		jparam= ; [[ $jobn -ge 2 ]] && jparam="-J 1-$jobn"
+		pbsjob=$(qsub -V $jparam -l walltime=$tsec "$PINCRAM_PBS_OPTION" -j oe -N reg${level}n$chunkn $qu $script)
 		touch distrib-$level-$pbsjob
 		echo "Job submitted" >&2
 		;;

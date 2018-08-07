@@ -65,7 +65,7 @@ do
 	shift
     done
 
-    if [[ -e $masktr ]] ; then
+    if [[ -e "$masktr" ]] ; then
 	msg "Result file $masktr exists"
 	continue 
     fi
@@ -73,7 +73,7 @@ do
     if [[ -n "$PINCRAM_USE_MIRTK" ]] ; then
 
 	if [[ $lev == 0 ]] ; then
-	    invert-dof "$tpn" tpninv.dof
+	    invert-dof "$tpn" tpninv.dof 
 	    compose-dofs "$spn" tpninv.dof dofout.dof
 	    # register $tgt $src -model Rigid -dofin pre.dof -dofout dofout.dof
 	fi
@@ -218,7 +218,7 @@ EOF
 	transformation "$alt" $tempalttr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
 	mv dofout.dof.gz $tempdof
     fi
-done
+done >reg-l$level-i$idx.log 2>&1
 
 ls _* >/dev/null 2>&1 && for i in _* ; do mv $i $(echo $i | tr '_' '/') ; done
-
+mv reg-l$level-i$idx.log $wd/
