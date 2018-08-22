@@ -205,7 +205,6 @@ then
     convert target-full.nii.gz target-full.nii.gz -float
     [ -e "$ref" ] && cp "$ref" ref.nii.gz && chmod +w ref.nii.gz
     if [[ -n $refspace ]] ; then
-	set -vx
 	seg_maths $refspace -smo 3 -otsu refspace-otsu.nii.gz
 	calculate-distance-map refspace-otsu.nii.gz refspace-euc.nii.gz 
 	seg_maths target-full.nii.gz -smo 3 -otsu target-otsu.nii.gz
@@ -214,7 +213,6 @@ then
 	areg2 refspace-euc.nii.gz target-euc.nii.gz -dofout pre-dof.gz -parin areg2.par	2>&1 >noisy.log
 	areg2 $refspace target-full.nii.gz -dofin pre-dof.gz -dofout tpn.dof.gz 2>&1 >noisy.log
 	tpn=$td/tpn.dof.gz
-	set +vx
     fi
 fi
 
