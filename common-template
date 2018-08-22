@@ -6,7 +6,8 @@
 
 # PINCRAM_ARCH=bash
 # PINCRAM_ARCH=ge
-export PINCRAM_ARCH=pbs
+PINCRAM_ARCH=pbs
+export PINCRAM_ARCH
 # export PINCRAM_QUEUE=myqueue ## Gets added to qsub call with -q option
 # export PINCRAM_CHUNKSIZE=1 ## Number of registrations per array subjob
 export $PINCRAM_PBS_OPTION="-l place=free" ## Per-system options
@@ -30,7 +31,7 @@ export PINCRAM_PROCEED_PCT=100 ## Minimum % ratio of expected atlas transformati
                                ## Reduce for rapid testing or when jobs are executed unreliably
 
 #####
-# For new installation: adapt paths to dependencies
+# For new installations: adapt paths to dependencies
 #####
 
 PATH=/***PATH/TO***/niftyseg/bin:$PATH  ## https://sourceforge.net/projects/niftyseg/
