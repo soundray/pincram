@@ -91,7 +91,7 @@ case $arch in
 	[[ $jobs == "100%" ]] && jobs=$(nproc --all)
 	chunkn=$[ $atlasn / $jobs ]
 	csec=$[$levelplus ** 4 * $chunkn]
-	cat $datalist | parallel -j $jobs $script 
+	cat $datalist | parallel -j $jobs $script &
 	echo $csec
 	;;
     *)
