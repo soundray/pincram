@@ -1,5 +1,3 @@
-#!/bin/bash
-
 #####
 # Parallelization architecture / middleware
 #####
@@ -10,7 +8,7 @@ PINCRAM_ARCH=pbs
 export PINCRAM_ARCH
 # export PINCRAM_QUEUE=myqueue ## Gets added to qsub call with -q option
 # export PINCRAM_CHUNKSIZE=1 ## Number of registrations per array subjob
-export $PINCRAM_PBS_OPTION="-l place=free" ## Per-system options
+export PINCRAM_PBS_OPTION="-l place=free" ## Per-system options
 
 
 #####
