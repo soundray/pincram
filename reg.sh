@@ -9,7 +9,6 @@ commandline="$pn $*"
 set -e   # Terminate script at first error
 
 level=$LEVEL
-echo LEVEL: $LEVEL >&2
 
 case "$PINCRAM_ARCH" in
     bash)
