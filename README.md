@@ -10,15 +10,15 @@ Pincram takes as input
 
 It produces
 
-* a total brain volume mask
+* a total brain volume mask (parenchyma plus internal cerebrospinal fluid)
 
-* an intracranial volume mask
+* an intracranial volume mask that fully contains the former
 
-* optionally a probabilistic segmentation of the total brain
+* a probabilistic segmentation of the total brain
 
 corresponding to the target image.
 
-Pincram works with GNU parallel and PBS to parallelize the atlas-target registrations.
+Pincram works with GNU parallel or PBS to parallelize the atlas-target registrations.
 
 ## Dependencies
 
