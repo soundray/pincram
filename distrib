@@ -86,8 +86,13 @@ case $arch in
 	echo $csec
 	;;
     bash)
+	atlasn=$(cat $datalist | wc -l)
+	levelplus=$[$level + 3]
 	[[ $jobs == "100%" ]] && jobs=$(nproc --all)
-	cat $datalist | parallel -j $jobs $script
+	chunkn=$[ $atlasn / $jobs ]
+	csec=$[$levelplus ** 4 * $chunkn]
+	cat $datalist | parallel -j $jobs $script 
+	echo $csec
 	;;
     *)
 	fatal "$arch not implemented"
