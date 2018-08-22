@@ -3,8 +3,8 @@
 usage () {
     msg "
 
-    Usage: $pn -img 3d-image.nii.gz -mask brainmask.nii.gz -icv icvmask.nii.gz \
-               -dir atlas-directory 
+    Usage: $pn -img 3d-image.nii.gz -mask brainmask.nii.gz -icv icvmask.nii.gz \\
+           -dir atlas-directory 
 
     Takes an image, a brain mask, an intracranial volume mask, and a directory 
     name and creates a pincram-compatible atlas structure under the directory
@@ -15,8 +15,8 @@ usage () {
 
     [-base basename] Base name for subject.  Image name root is used if not specified
 
-    [-posnorm posnorm.dof.gz] Positionally normalizing rigid transformation. If not 
-                              supplied, a neutral transformation is copied.
+    [-affinenorm norm.dof.gz] Affine transformation normalizing entry to a common space. 
+                              If not supplied, a neutral transformation is copied.
     "
 }
 
@@ -30,24 +30,25 @@ pn=$(basename "$0")
 td=$(tempdir)
 trap finish EXIT
 
-which help-rst >/dev/null || fatal "MIRTK not on $PATH"
+which help-rst >/dev/null 2>&1 || fatal "MIRTK not on $PATH"
 
+echo $#
 [[ $# -lt 8 ]] && fatal "Parameter error"
 img=
 msk=
 icv=
 atlasdir=
 bname=
-posnorm=$cdir/neutral.dof.gz
+norm=$cdir/neutral.dof.gz
 while [[ $# -gt 0 ]]
 do
     case "$1" in
         -img)               img=$(normalpath "$2"); shift;;
         -mask)              msk=$(normalpath "$2"); shift;;
         -icv)               icv=$(normalpath "$2"); shift;;
-	-atlasdir)     atlasdir=$(normalpath "$2"); shift;;
-        -basename)        bname="$2" ;;
-	-posnorm)       posnorm=$(normalpath "$2"); shift;;
+	-affinenorm)       norm=$(normalpath "$2"); shift;;
+	-dir)          atlasdir=$(normalpath "$2"); shift;;
+        -base)            bname="$2" ;;
         --) shift; break;;
         -*)
             fatal "Parameter error" ;;
@@ -61,7 +62,7 @@ done
 
 entree=$atlasdir/etc/entry-$bname
 
-[[ -e $entree ]] && fatal "Entry $bname exists. Set a different -basename"
+[[ -e $entree ]] && fatal "Entry $bname exists. Set a different -base"
 
 launchdir="$PWD"
 cd $td
@@ -73,22 +74,24 @@ dilate-image mask.nii.gz mask-dil.nii.gz
 erode-image mask.nii.gz mask-ero.nii.gz
 calculate-element-wise mask-dil.nii.gz -sub mask-ero.nii.gz -o margin-d1.nii.gz
 dilate-image margin-d1.nii.gz margin-mask-d5.nii.gz -iterations 4
-calculate-element-wise image.nii.gz -mask margin-mask-d5.nii.gz 0 -pad 0 -o margin-d5.nii.gz
 
-mkdir -p $atlasdir/images/full $atlasdir/images/margin-d5 $atlasdir/etc || fatal "Could not create directory structure"
-mkdir -p $atlasdir/brainmasks $atlasdir/icvmasks $atlasdir/posnorm || fatal "Could not create directory structure"
+mkdir -p $atlasdir/images $atlasdir/marginmasks $atlasdir/etc || fatal "Could not create directory structure"
+mkdir -p $atlasdir/brainmasks $atlasdir/icvmasks $atlasdir/affinenorm || fatal "Could not create directory structure"
 
-cp image.nii.gz $atlasdir/images/full/$bname.nii.gz
-cp margin-d5.nii.gz $atlasdir/images/margin-d5/$bname.nii.gz
+cp image.nii.gz $atlasdir/images/$bname.nii.gz
+cp margin-mask-d5.nii.gz $atlasdir/marginmasks/$bname.nii.gz
 cp mask.nii.gz $atlasdir/brainmasks/$bname.nii.gz
 cp "$icv" $atlasdir/icvmasks/$bname.nii.gz
-cp "$posnorm" $atlasdir/posnorm/$bname.dof.gz
+cp "$norm" $atlasdir/affinenorm/$bname.dof.gz
 
 echo -n $bname, >$entree
-for i in images/full images/margin-d5 brainmasks icvmasks ; do
+for i in images marginmasks ; do
     echo -n $i/$bname.nii.gz, >>$entree
 done
-echo posnorm/$bname.dof.gz >>$entree
+echo -n affinenorm/$bname.dof.gz, >>$entree
+for i in brainmasks icvmasks ; do
+    echo -n $i/$bname.nii.gz, >>$entree
+done
+echo >>$entree
 
 exit 0
-
