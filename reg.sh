@@ -44,8 +44,10 @@ fi
 
 cat thischunk | sort -R | while read params
 do
-    set -- $(echo $params)
 
+    (( loopc += 1 ))
+
+    set -- $(echo $params)
     while [ $# -gt 0 ]
     do
 	case "$1" in
@@ -214,16 +216,11 @@ EOF
 	    nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg -mask $tmargin
 	fi
 
-	tempmasktr=$(echo "$masktr" | tr '/' '_')
-	tempsrctr=$(echo "$srctr" | tr '/' '_')
-	tempalttr=$(echo "$alttr" | tr '/' '_')
-	tempdof=$(echo "$dofout" | tr '/' '_')
-	transformation "$msk" $tempmasktr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
-	transformation "$src" $tempsrctr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
-	transformation "$alt" $tempalttr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
-	mv dofout.dof.gz $tempdof
+	transformation "$msk" $masktr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
+	transformation "$src" $srctr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
+	transformation "$alt" $alttr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
+	mv dofout.dof.gz $dofout
     fi
 done >reg-l$level-i$idx.log 2>&1
 
-ls _* >/dev/null 2>&1 && for i in _* ; do mv $i $(echo $i | tr '_' '/') ; done
 mv reg-l$level-i$idx.log $wd/
