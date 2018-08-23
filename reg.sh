@@ -29,6 +29,7 @@ case "$PINCRAM_ARCH" in
 esac
 
 td=$(tempdir)
+trap finish EXIT
 cd $td
 
 if [[ $idx -gt 0 ]] 
