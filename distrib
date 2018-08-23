@@ -83,6 +83,7 @@ case $arch in
 		fatal "PBS error"
 		;;
 	esac
+	msg "Estimated processing time $csec seconds"
 	echo $csec
 	;;
     bash)
@@ -92,6 +93,7 @@ case $arch in
 	chunkn=$[ $atlasn / $jobs ]
 	csec=$[$levelplus ** 4 * $chunkn]
 	cat $datalist | parallel --no-notice -j $jobs $script &
+	msg "Estimated processing time $csec seconds"
 	echo $csec
 	;;
     *)
