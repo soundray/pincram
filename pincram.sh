@@ -59,10 +59,9 @@ Usage: $0 <input> <options> <-result result-dir/> \\
 
 -par        : Number of jobs to run in parallel (shell level).  Please use with consideration.
 EOF
-fatal "Parameter error"
 }
 
-[ $# -lt 3 ] && usage
+[ $# -lt 3 ] && fatal "Too few parameters"
 
 tgt=$(normalpath "$1") ; shift
 test -e $tgt || fatal "No image found -- $t"
@@ -90,7 +89,7 @@ do
 	-par)               par="$2"; shift;;
 	--) shift; break;;
         -*)
-            usage;;
+            fatal "Unknown parameter" ;;
 	*)  break;;
     esac
     shift
