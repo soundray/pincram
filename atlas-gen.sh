@@ -88,9 +88,8 @@ for i in images marginmasks ; do
     echo -n $i/$bname.nii.gz, >>$entree
 done
 echo -n affinenorm/$bname.dof.gz, >>$entree
-for i in brainmasks icvmasks ; do
-    echo -n $i/$bname.nii.gz, >>$entree
-done
+echo -n brainmasks/$bname.nii.gz, >>$entree
+echo -n icvmasks/$bname.nii.gz >>$entree
 echo >>$entree
 echo $atlasdir >$atlasdir/atlas.csv
 cat $atlasdir/etc/entry-* >>$atlasdir/atlas.csv
