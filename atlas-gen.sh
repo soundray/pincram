@@ -32,7 +32,6 @@ trap finish EXIT
 
 which help-rst >/dev/null 2>&1 || fatal "MIRTK not on $PATH"
 
-echo $#
 [[ $# -lt 8 ]] && fatal "Parameter error"
 img=
 msk=
@@ -93,5 +92,7 @@ for i in brainmasks icvmasks ; do
     echo -n $i/$bname.nii.gz, >>$entree
 done
 echo >>$entree
+echo $atlasdir >$atlasdir/atlas.csv
+cat $atlasdir/etc/entry-* >>$atlasdir/atlas.csv
 
 exit 0
