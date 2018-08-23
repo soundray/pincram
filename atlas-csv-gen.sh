@@ -1,4 +1,4 @@
-\#!/bin/bash
+#!/bin/bash
 
 cdir=$(dirname "$0")
 . $cdir/common
