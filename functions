@@ -23,7 +23,18 @@ normalpath () {
     echo $(cd $dir && pwd)/$bas
 }
 
+brake () {
+    local n=$1
+    : ${n:=0}
+    while true
+    do
+      	j=$(jobs -r | wc -l)
+	[[ $j -lt $n ]] && break
+    done ;
+}
+
 finish () {
     [[ $savewd -eq 1 ]] || rm -rf "$td"
     exit
 }
+

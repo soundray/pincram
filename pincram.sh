@@ -135,6 +135,11 @@ origin() {
     info $img | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6
 }
 
+nmi() {
+    local img=$1
+    evaluation target-full.nii.gz $img -Tp 0 -mask emargin-$thislevel-dil.nii.gz | grep NMI | cut -d ' ' -f 2
+}
+
 
 ### Core working directory
 
@@ -344,12 +349,26 @@ for level in $(seq 0 $maxlevel) ; do
 
     ## Selection
     msg "Selecting"
-    for srcindex in $(cat selection-$prevlevel.csv) ; do
-	srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
-	if [[ -e $srctr ]] && [[ ! -z $srctr ]] ; then
-	    echo $(evaluation target-full.nii.gz $srctr -Tp 0 -mask emargin-$thislevel-dil.nii.gz | grep NMI | cut -d ' ' -f 2 )",$srcindex"
-	fi
-    done | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
+    if [[ $par -eq 1 ]]
+    then
+	for srcindex in $(cat selection-$prevlevel.csv) ; do
+	    srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
+	    if [[ -e $srctr ]] && [[ ! -z $srctr ]] ; then
+		echo $( nmi $srctr )",$srcindex"
+	    fi
+	done | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
+    else
+	for srcindex in $(cat selection-$prevlevel.csv) ; do
+	    srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
+	    if [[ -e $srctr ]] && [[ ! -z $srctr ]] ; then
+		echo $( nmi $srctr )",$srcindex" > simm-$thislevel-s$srcindex.csv & brake $par
+	    fi
+	done
+	wait
+	cat simm-$thislevel-s*.csv | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
+	rm simm-$thislevel-s*.csv
+    fi
+	
     tar -cf srctr-$thislevel.tar srctr-$thislevel-s*.nii.gz ; rm srctr-$thislevel-s*.nii.gz
     tar -cf alttr-$thislevel.tar alttr-$thislevel-s*.nii.gz
     maxweight=$(head -n 1 simm-$thislevel.csv | cut -d , -f 1)
