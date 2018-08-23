@@ -206,6 +206,7 @@ then
     [ -e "$ref" ] && cp "$ref" ref.nii.gz && chmod +w ref.nii.gz
     if [[ -n $refspace ]] ; then
 	if which calculate-distance-map >/dev/null 2>&1 ; then
+	    msg "Calculating affine normalization to reference space with distance maps"
 	    seg_maths $refspace -smo 3 -otsu refspace-otsu.nii.gz
 	    calculate-distance-map refspace-otsu.nii.gz refspace-euc.nii.gz 
 	    seg_maths target-full.nii.gz -smo 3 -otsu target-otsu.nii.gz
@@ -215,6 +216,7 @@ then
 	    areg2 $refspace target-full.nii.gz -dofin pre-dof.gz -dofout tpn.dof.gz >noisy.log 2>&1
 	    tpn=$td/tpn.dof.gz
 	else
+	    msg "Calculating affine normalization to reference space"
 	    areg2 $refspace target-full.nii.gz -dofout tpn.dof.gz >noisy.log 2>&1 
 	fi
     fi
@@ -282,8 +284,9 @@ for level in $(seq 0 $maxlevel) ; do
     cp job.conf job-$thislevel.conf
     if [[ -s job.conf ]] 
     then
+	msg "Launching registrations"
 	csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level)
-	etasec=$(( $(date +%s) + csec ))
+	etasec=$(( $(date +%s) + $csec ))
 	eta=$(date -d "@$etasec")
 	msg "Minimum estimated processing time level $thislevel: $csec seconds, first job status check at $eta" 
     fi
@@ -304,20 +307,20 @@ for level in $(seq 0 $maxlevel) ; do
 	[[ $masksready -gt $prevmasksready ]] && loopcount=0
 	[[ $masksready -eq 1 ]] && masksready=0
 	echo -n $($cdir/spark 0 $masksready $nselected | cut -c 2)
-	sleep $sleeptime
 	if [[ $(date +%s ) -gt $etasec ]] 
 	then
 	    echo
+	    msg "Masks not ready by deadline. Relaunching registrations"
 	    csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level)
-	    etasec=$(( $(date +%s) + csec ))
+	    etasec=$(( $(date +%s) + $csec ))
 	    eta=$(date -d "@$etasec")
-	    msg "Extended processing time. Next job status check at $eta" 
+	    msg "Next job status check at $eta" 
 	fi
+	sleep $sleeptime
     done
     echo
     msg "Minimum number of mask transformations calculated"
     [[ $masksready -lt $nselected ]] && sleep 30  # Extra sleep if we're going on an incomplete mask set
-
 
     ## Generate reference for atlas selection (fused from all)
     set -- masktr-$thislevel-s*
