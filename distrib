@@ -6,9 +6,7 @@ cdir=$(dirname "$0")
 cdir=$(normalpath "$cdir")
 export cdir
 
-pn=$0
-prog=$(basename "$pn")
-comline="$cdir/$prog $*"
+pn=$(basename "$0")
 
 # parameters
 datalist=
