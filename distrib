@@ -91,6 +91,7 @@ case $arch in
 	levelplus=$[$level + 3]
 	[[ $jobs == "100%" ]] && jobs=$(nproc --all)
 	chunkn=$[ $atlasn / $jobs ]
+	[[ $chunkn -eq 0 ]] && chunkn=1
 	csec=$[$levelplus ** 4 * $chunkn]
 	cat $datalist | parallel --no-notice -j $jobs $script &
 	msg "Estimated processing time $csec seconds"
