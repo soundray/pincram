@@ -14,6 +14,7 @@ commandline="$pn $*"
 
 usage () {
 cat <<EOF
+
 Copyright (C) 2012-2018 Rolf A. Heckemann
 Web site: http://www.soundray.org/pincram
 
@@ -58,6 +59,7 @@ Usage: $0 <input> <options> <-result result-dir/> \\
 -ref        : Reference label against which to log Jaccard overlap results.
 
 -par        : Number of jobs to run in parallel (shell level).  Please use with consideration.
+
 EOF
 }
 
