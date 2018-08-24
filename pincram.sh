@@ -161,8 +161,14 @@ then
     touch 0.log ; rm *.log
     touch weights0.csv ; rm weights*.csv
 else
-    mkdir -p "$workdir"
-    td=$(mktemp -d "$workdir/$(basename $0).XXXXXX") || fatal "Could not create working directory in $workdir"
+    if [[ $PINCRAM_ARCH == "pbs" ]] ; then
+	mkdir -p "$workdir"
+	td=$(mktemp -d "$workdir/$(basename $0).XXXXXX") || fatal "Could not create working directory in $workdir"
+    else
+	: ${TMPDIR:=/tmp/$USER}
+	mkdir -p $TMPDIR
+	td=$(mktemp -d $TMPDIR/$(basename $0).XXXXXX) || fatal "Could not create working directory in $TMPDIR"
+    fi
 fi
 export PINCRAM_WORKDIR=$td
 trap finish EXIT
@@ -192,6 +198,7 @@ done
 if [[ -z $tpn ]] ; then
     refspace=$atlasbase/refspace/img.nii.gz
     [[ -e $refspace ]] || fatal "No reference space declared ($refspace) and -tpn not provided"
+    refspacedm=$atlasbase/refspace/img-otsu-dm.nii.gz
 fi
 
 atlasmax=$[$(cat $atlas | wc -l)-1]
@@ -213,12 +220,16 @@ then
     if [[ -n $refspace ]] ; then
 	if which calculate-distance-map >/dev/null 2>&1 ; then
 	    msg "Calculating affine normalization to reference space with distance maps"
-	    seg_maths $refspace -smo 3 -otsu refspace-otsu.nii.gz
-	    calculate-distance-map refspace-otsu.nii.gz refspace-euc.nii.gz 
+	    if [[ -e $refspacedm ]] ; then
+		cp $refspacedm refspace-dm.nii.gz
+	    else
+		seg_maths $refspace -smo 3 -otsu refspace-otsu.nii.gz
+		calculate-distance-map refspace-otsu.nii.gz refspace-dm.nii.gz 
+	    fi
 	    seg_maths target-full.nii.gz -smo 3 -otsu target-otsu.nii.gz
-	    calculate-distance-map target-otsu.nii.gz target-euc.nii.gz 
+	    calculate-distance-map target-otsu.nii.gz target-dm.nii.gz 
 	    echo "Similarity measure = SSD" >areg2.par
-	    areg2 refspace-euc.nii.gz target-euc.nii.gz -dofout pre-dof.gz -parin areg2.par >noisy.log 2>&1
+	    areg2 refspace-dm.nii.gz target-dm.nii.gz -dofout pre-dof.gz -parin areg2.par >noisy.log 2>&1
 	    areg2 $refspace target-full.nii.gz -dofin pre-dof.gz -dofout tpn.dof.gz >noisy.log 2>&1
 	    tpn=$td/tpn.dof.gz
 	else
