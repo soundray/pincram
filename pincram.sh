@@ -209,7 +209,7 @@ if [[ -z $pickup ]]
 then 
     headertool "$tgt" target-full.nii.gz -origin 0 0 0
     convert target-full.nii.gz target-full.nii.gz -float
-    [ -e "$ref" ] && cp "$ref" ref.nii.gz && chmod +w ref.nii.gz
+    [ -e "$ref" ] && headertool "$ref" ref.nii.gz -origin 0 0 0 && chmod +w ref.nii.gz
     if [[ -n $refspace ]] ; then
 	if which calculate-distance-map >/dev/null 2>&1 ; then
 	    msg "Calculating affine normalization to reference space with distance maps"
@@ -395,7 +395,6 @@ for level in $(seq 0 $maxlevel) ; do
     seg_maths $@ tmask-$thislevel-sel-sum.nii.gz
     seg_maths tmask-$thislevel-sel-sum.nii.gz -thr 0 -bin tmask-$thislevel-sel.nii.gz
     assess tmask-$thislevel-sel.nii.gz | tee -a assess.log
-    rm masktr-$thislevel-*.nii.gz
     prevlevel=$thislevel
 
 
@@ -442,6 +441,19 @@ convert ormask.nii.gz icv1.nii.gz -uchar >>noisy.log 2>&1
 ### Compare output mask with reference
 
 assess parenchyma1.nii.gz | tee -a assess.log
+
+
+### Generate output mask from final selection using shape-based averaging
+if which calculate-distance-map >/dev/null 2>&1 ; then
+    for srcindex in $(cat selection-$thislevel.csv) ; do
+	calculate-distance-map masktr-$thislevel-s$srcindex.nii.gz masktr-dm-$thislevel-s$srcindex.nii.gz & brake $par
+    done
+    wait
+    set -- masktr-dm-$thislevel-s* ; set -- $(echo $@ | sed 's/ / -add /g')
+    seg_maths $* -mul -1 -thr 0 -bin shape-average1.nii.gz
+    assess shape-average1.nii.gz | tee -a assess.log
+    headertool shape-average1.nii.gz "$result"/shape-average.nii.gz -origin $originalorigin
+fi
 
 
 ### Package and delete transformations
