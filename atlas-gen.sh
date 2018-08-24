@@ -28,7 +28,7 @@ cdir=$(normalpath "$cdir")
 pn=$(basename "$0")
 
 td=$(tempdir)
-trap finish EXIT
+trap 'rm -rf $td' EXIT
 
 which help-rst >/dev/null 2>&1 || fatal "MIRTK not on $PATH"
 

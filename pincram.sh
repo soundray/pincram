@@ -37,7 +37,7 @@ Usage: $0 <input> <options> <-result result-dir/> \\
               same <input>, etc.), else results are unpredictable.
 
 -savewd     : By default, the temporary directory under the working directory will be deleted 
-              after processing. Set this flag to save intermediate files in the -workdir location.
+              after processing. Set this flag to save intermediate files in the -result location.
 
 -atlas      : Atlas directory.
               Has to contain images/m{1..n}.nii.gz, brainmasks/m{1..n}.nii.gz, affinenorm/m{1..n}.dof.gz,
@@ -122,6 +122,14 @@ else
 fi
 
 ### Functions
+
+finish () {
+    if [[ $savewd -eq 1 ]] ; then
+	mv "$td" "$result"
+    else
+	rm -rf "$td"
+    exit
+}
 
 assess() {
     local glabels="$1"

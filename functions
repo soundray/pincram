@@ -33,8 +33,3 @@ brake () {
     done ;
 }
 
-finish () {
-    [[ $savewd -eq 1 ]] || rm -rf "$td"
-    exit
-}
-

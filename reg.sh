@@ -6,6 +6,14 @@ commandline="$pn $*"
 . $cdir/common
 . $cdir/functions
 
+finish () {
+    if [[ $savewd -eq 1 ]] ; then
+	mv "$td" "$wd"
+    else
+	rm -rf "$td"
+    exit
+}
+
 set -e   # Terminate script at first error
 
 level=$LEVEL
