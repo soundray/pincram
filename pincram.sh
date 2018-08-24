@@ -453,8 +453,9 @@ if which calculate-distance-map >/dev/null 2>&1 ; then
     seg_maths $* -mul -1 -thr 0 -bin shape-average1.nii.gz
     assess shape-average1.nii.gz | tee -a assess.log
     headertool shape-average1.nii.gz "$result"/shape-average.nii.gz -origin $originalorigin
+    tar -cf masktr-dm-$thislevel.tar masktr-dm-$thislevel-s*.nii.gz ; rm masktr-dm-$thislevel-s*.nii.gz    
 fi
-
+rm masktr-*-s*.nii.gz
 
 ### Package and delete transformations
 
