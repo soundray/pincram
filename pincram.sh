@@ -291,7 +291,7 @@ for level in $(seq 0 $maxlevel) ; do
     if [[ -s job.conf ]] 
     then
 	msg "Launching registrations"
-	csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level)
+	csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level -jobs $par)
 	etasec=$(( $(date +%s) + $csec ))
 	eta=$(date -d "@$etasec")
 	[[ $PINCRAM_ARCH == "pbs" ]] && msg "First job status check at $eta" 
@@ -317,7 +317,7 @@ for level in $(seq 0 $maxlevel) ; do
 	then
 	    echo
 	    msg "Masks not ready by deadline. Relaunching registrations"
-	    csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level)
+	    csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level -jobs $par)
 	    etasec=$(( $(date +%s) + $csec ))
 	    eta=$(date -d "@$etasec")
 	    [[ $PINCRAM_ARCH == "pbs" ]] && msg "Next job status check at $eta" 
