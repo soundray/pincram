@@ -128,6 +128,7 @@ finish () {
 	mv "$td" "$result"
     else
 	rm -rf "$td"
+    fi
     exit
 }
 

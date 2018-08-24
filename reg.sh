@@ -11,6 +11,7 @@ finish () {
 	mv "$td" "$wd"
     else
 	rm -rf "$td"
+    fi
     exit
 }
 
