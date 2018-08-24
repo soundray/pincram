@@ -28,18 +28,19 @@ Usage: $0 <input> <options> <-result result-dir/> \\
 -result     : Name of directory to receive output files. Will be created if it does not exist. Contents
               will be overwritten if they exist.
 
--workdir    : Base working directory. Default is present working directory. Should be a network-accessible 
-              location. On each run, a uniquely named directory for intermediate results is generated.
+-workdir    : Base working directory. Default is present working directory. When running under PBS, this
+              location needs to be accessible from the cluster nodes. On each run, a uniquely named directory 
+              for intermediate results is generated.
 
 -pickup     : Intermediate results directory from a previous run -- work will be continued. Overrides 
               -workdir setting if given. Implies -savewd. Previous run must be compatible (same -atlas,
               same <input>, etc.), else results are unpredictable.
 
--savewd     : (Optional) By default, the temporary directory under the working directory
-              will be deleted after processing. Set this flag to keep intermediate files.
+-savewd     : By default, the temporary directory under the working directory will be deleted 
+              after processing. Set this flag to save intermediate files in the -workdir location.
 
 -atlas      : Atlas directory.
-              Has to contain images/full/m{1..n}.nii.gz, masks/full/m{1..n}.nii.gz, posnorm/m{1..n}.dof.gz,
+              Has to contain images/m{1..n}.nii.gz, brainmasks/m{1..n}.nii.gz, affinenorm/m{1..n}.dof.gz,
               and refspace/img.nii.gz (unless -tpn given).
               Alternatively, -atlas can point to a csv spreadsheet: first row should be base directory for
               atlas files. Entries should be relative to base directory. Each row refers to one atlas.
