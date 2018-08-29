@@ -366,7 +366,7 @@ for level in $(seq 0 $maxlevel) ; do
 
 
     ## Generate target margin mask for similarity ranking and apply
-    seg_maths tmask-$thislevel-sum.nii.gz -abs -uthr 0.99 -bin emargin-$thislevel-dil.nii.gz
+    seg_maths tmask-$thislevel-sum.nii.gz -abs -uthr 5 -bin emargin-$thislevel-dil.nii.gz
 
 
     ## Selection
@@ -403,9 +403,7 @@ for level in $(seq 0 $maxlevel) ; do
 
 
     ## Build label from selection
-    thissize=$#
-    [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel"
-    head -n $thissize simm-$thislevel.csv | tr , ' ' | while read nmi s
+    head -n $nselected simm-$thislevel.csv | tr , ' ' | while read nmi s
     do
         weight=$(echo '1 / ( '$maxweight' - 1 ) * ( '$nmi' - 1 )' | bc -l )
         echo $s,$weight >>weights-$thislevel.csv
@@ -420,10 +418,11 @@ for level in $(seq 0 $maxlevel) ; do
 
 
     ## Target data mask (skip on last iteration)
-    scalefactor=$(seg_stats tmask-$thislevel-sel-sum.nii.gz -r | cut -d ' ' -f 2)
+    set -- $( head -n $nselected weights-$thislevel.csv | cut -d , -f 2 )
+    scalefactor=$( echo $@ | sed 's/ / + /g' | bc -l )
     seg_maths tmask-$thislevel-sel-sum.nii.gz -div $scalefactor probmap-$thislevel.nii.gz
     [ $level -eq $maxlevel ] && continue
-    seg_maths probmap-$thislevel.nii.gz -abs -uthr 0.99 dmargin-$thislevel.nii.gz ## Tested 0.9: worse
+    seg_maths probmap-$thislevel.nii.gz -abs -uthr 5 -bin dmargin-$thislevel.nii.gz ## Tested 0.9: worse
     tmg="$PWD"/dmargin-$thislevel.nii.gz
 done
 
