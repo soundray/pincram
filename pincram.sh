@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 cdir=$(dirname "$0")
 . $cdir/common
 . $cdir/functions
@@ -125,6 +127,7 @@ fi
 
 finish () {
     if [[ $savewd -eq 1 ]] ; then
+	chmod -R u+rwX $td
 	mv "$td" "$result"
     else
 	rm -rf "$td"
@@ -151,7 +154,13 @@ nmi() {
     evaluation target-full.nii.gz $img -Tp 0 -mask emargin-$thislevel-dil.nii.gz | grep NMI | cut -d ' ' -f 2
 }
 
-
+distmap() {
+    local img=$1 ; shift
+    local out=$1
+    seg_maths $img -smo 6 -otsu -sub 1 -mul -1 dm-otsu.nii.gz 
+    calculate-distance-map dm-otsu.nii.gz $out
+}
+ 
 ### Core working directory
 
 if [[ -n "$pickup" ]] 
@@ -233,11 +242,9 @@ then
 	    if [[ -e $refspacedm ]] ; then
 		cp $refspacedm refspace-dm.nii.gz
 	    else
-		seg_maths $refspace -smo 3 -otsu refspace-otsu.nii.gz
-		calculate-distance-map refspace-otsu.nii.gz refspace-dm.nii.gz 
+		distmap $refspace refspace-dm.nii.gz 
 	    fi
-	    seg_maths target-full.nii.gz -smo 3 -otsu target-otsu.nii.gz
-	    calculate-distance-map target-otsu.nii.gz target-dm.nii.gz 
+	    distmap target-full.nii.gz target-dm.nii.gz 
 	    echo "Similarity measure = SSD" >areg2.par
 	    areg2 refspace-dm.nii.gz target-dm.nii.gz -dofout pre-dof.gz -parin areg2.par >noisy.log 2>&1
 	    areg2 $refspace target-full.nii.gz -dofin pre-dof.gz -dofout tpn.dof.gz >noisy.log 2>&1
@@ -462,20 +469,6 @@ convert ormask.nii.gz icv1.nii.gz -uchar >>noisy.log 2>&1
 
 assess parenchyma1.nii.gz | tee -a assess.log
 
-
-### Generate output mask from final selection using shape-based averaging
-if which calculate-distance-map >/dev/null 2>&1 ; then
-    for srcindex in $(cat selection-$thislevel.csv) ; do
-	calculate-distance-map masktr-$thislevel-s$srcindex.nii.gz masktr-dm-$thislevel-s$srcindex.nii.gz & brake $par
-    done
-    wait
-    set -- masktr-dm-$thislevel-s* ; set -- $(echo $@ | sed 's/ / -add /g')
-    seg_maths $* -mul -1 -thr 0 -bin shape-average1.nii.gz
-    assess shape-average1.nii.gz | tee -a assess.log
-    headertool shape-average1.nii.gz "$result"/shape-average.nii.gz -origin $originalorigin
-    tar -cf masktr-dm-$thislevel.tar masktr-dm-$thislevel-s*.nii.gz ; rm masktr-dm-$thislevel-s*.nii.gz    
-fi
-rm masktr-*-s*.nii.gz
 
 ### Package and delete transformations
 
