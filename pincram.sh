@@ -286,17 +286,28 @@ for level in $(seq 0 $maxlevel) ; do
     ## Prep datasets line by line in job.conf
     for srcindex in $(cat selection-$prevlevel.csv) ; do
 
+	# Read in atlas
+	atlasname= ; src= ; mrgorspn= ; mrg= ; spn= ; msk= ; alt= ; mrggen= 
 	set -- $(head -n $[$srcindex+1] $atlas | tail -n 1 | tr ',' ' ')
 	atlasname=$1 ; shift
 	src=$atlasbase/$1 ; shift
-	mrg=$atlasbase/$1 ; shift
-	spn=$atlasbase/$1 ; shift
+	mrgorspn=$atlasbase/$1 ; shift
+	if [[ $mrgorspn == $(basename $mrgorspn .dof.gz) ]] ; then
+	    mrg=$mrgorspn
+	    spn=$atlasbase/$1 ; shift
+	else
+	    mrg=
+	    spn=$mrgorspn
+	fi
 	msk=$atlasbase/$1 ; shift
 	alt=$atlasbase/$1 ; shift
-
 	if [[ $level -ge 2 ]] ; then 
-	    mrggen=$td/mrg-s$srcindex.nii.gz
+	    mrggen=$td/mrggen-s$srcindex.nii.gz
 	    if [[ ! -e $mrggen ]] ; then
+		if [[ -z $mrg ]] ; then
+		    mrg=$td/mrg-s$srcindex.nii.gz
+		    seg_maths $msk -abs -uthr 7 $mrg
+		fi
 		seg_maths $mrg -bin -mul $src $mrggen
 		src=$mrggen
 	    fi

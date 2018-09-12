@@ -7,6 +7,7 @@ commandline="$pn $*"
 . $cdir/functions
 
 finish () {
+    savewd=1
     if [[ $savewd -eq 1 ]] ; then
 	mv "$td" "$wd"
     else
@@ -40,7 +41,7 @@ esac
 td=$(tempdir)
 trap finish EXIT
 cd $td
-
+set -vx
 if [[ $idx -gt 0 ]] 
 then
     split -a 4 -l $chunkn -d $wd/job.conf
@@ -53,7 +54,7 @@ fi
 
 cat thischunk | sort -R | while read params
 do
-
+set +vx
     (( loopc += 1 ))
 
     set -- $(echo $params)
