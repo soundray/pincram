@@ -490,9 +490,10 @@ tar -cf reg-dofs.tar reg*.dof.gz ; rm reg*.dof.gz
 
 ### Apply original origin settings and copy output
 
-headertool parenchyma1.nii.gz "$result"/parenchyma.nii.gz -origin $originalorigin
-headertool icv1.nii.gz "$result"/icv.nii.gz -origin $originalorigin
-headertool probmap-$thislevel.nii.gz "$result"/prime-probmap.nii.gz -origin $originalorigin
+headertool parenchyma1.nii.gz parenchyma.nii.gz -origin $originalorigin
+headertool icv1.nii.gz icv.nii.gz -origin $originalorigin
+headertool probmap-$thislevel.nii.gz prime-probmap.nii.gz -origin $originalorigin
+cp parenchyma.nii.gz icv.nii.gz prime-probmap.nii.gz "$result"/
 
 msg "$(date)"
 msg "End processing"
