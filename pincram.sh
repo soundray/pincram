@@ -494,6 +494,7 @@ headertool parenchyma1.nii.gz parenchyma.nii.gz -origin $originalorigin
 headertool icv1.nii.gz icv.nii.gz -origin $originalorigin
 headertool probmap-$thislevel.nii.gz prime-probmap.nii.gz -origin $originalorigin
 cp parenchyma.nii.gz icv.nii.gz prime-probmap.nii.gz "$result"/
+[[ -s assess.log ]] && cp assess.log "$result"/
 
 msg "$(date)"
 msg "End processing"
