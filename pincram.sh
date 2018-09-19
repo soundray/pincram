@@ -292,7 +292,7 @@ for level in $(seq 0 $maxlevel) ; do
 	atlasname=$1 ; shift
 	src=$atlasbase/$1 ; shift
 	mrgorspn=$atlasbase/$1 ; shift
-	if [[ $mrgorspn == $(basename $mrgorspn .dof.gz) ]] ; then
+	if [[ $( basename $mrgorspn ) == $( basename $mrgorspn .dof.gz) ]] ; then
 	    mrg=$mrgorspn
 	    spn=$atlasbase/$1 ; shift
 	else
@@ -384,7 +384,8 @@ for level in $(seq 0 $maxlevel) ; do
 
 
     ## Generate target margin mask for similarity ranking and apply
-    seg_maths tmask-$thislevel-sum.nii.gz -abs -uthr 5 -bin emargin-$thislevel-dil.nii.gz
+    thresh1=$[$[$level - 5 ]**2 / 3 ]
+    seg_maths tmask-$thislevel-sum.nii.gz -abs -uthr $thresh1 -bin emargin-$thislevel-dil.nii.gz
 
 
     ## Selection
@@ -440,7 +441,8 @@ for level in $(seq 0 $maxlevel) ; do
     scalefactor=$( echo $@ | sed 's/ / + /g' | bc -l )
     seg_maths tmask-$thislevel-sel-sum.nii.gz -div $scalefactor probmap-$thislevel.nii.gz
     [ $level -eq $maxlevel ] && continue
-    seg_maths probmap-$thislevel.nii.gz -abs -uthr 5 -bin dmargin-$thislevel.nii.gz ## Tested 0.9: worse
+    thresh2=$[$[$level - 6 ]**2 / 5 ]
+    seg_maths probmap-$thislevel.nii.gz -abs -uthr $thresh2 -bin dmargin-$thislevel.nii.gz 
     tmg="$PWD"/dmargin-$thislevel.nii.gz
 done
 
