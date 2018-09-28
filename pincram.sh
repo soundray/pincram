@@ -384,7 +384,7 @@ for level in $(seq 0 $maxlevel) ; do
 
 
     ## Generate target margin mask for similarity ranking and apply
-    thresh1=$[$[$level - 5 ]**2 / 3 ]
+    thresh1=$( echo "( $level - 5 )^2 / 3" | bc -l )
     seg_maths tmask-$thislevel-sum.nii.gz -abs -uthr $thresh1 -bin emargin-$thislevel-dil.nii.gz
 
 
@@ -441,7 +441,7 @@ for level in $(seq 0 $maxlevel) ; do
     scalefactor=$( echo $@ | sed 's/ / + /g' | bc -l )
     seg_maths tmask-$thislevel-sel-sum.nii.gz -div $scalefactor probmap-$thislevel.nii.gz
     [ $level -eq $maxlevel ] && continue
-    thresh2=$[$[$level - 6 ]**2 / 5 ]
+    thresh2=$( echo "( $level - 6 )^2 / 5" | bc -l )
     seg_maths probmap-$thislevel.nii.gz -abs -uthr $thresh2 -bin dmargin-$thislevel.nii.gz 
     tmg="$PWD"/dmargin-$thislevel.nii.gz
 done

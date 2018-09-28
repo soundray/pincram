@@ -128,7 +128,41 @@ do
     else
 
         if [[ $lev == 0 ]] ; then
-	    dofcombine "$spn" "$tpn" dofout.dof.gz -invert2
+	    cat >lev0.reg << EOF
+#
+# Registration parameters
+#
+
+No. of resolution levels          = 1
+No. of bins                       = 64
+Epsilon                           = 0.0001
+Padding value                     = -1
+Source padding value              = -1
+Similarity measure                = NMI
+Interpolation mode                = Linear
+
+#
+# Registration parameters for resolution level 1
+#
+
+Resolution level                  = 1
+Target blurring (in mm)           = 2
+Target resolution (in mm)         = 5 5 5
+Source blurring (in mm)           = 2
+Source resolution (in mm)         = 5 5 5
+No. of iterations                 = 40
+Minimum length of steps           = 0.01
+Maximum length of steps           = 2
+
+EOF
+	    dofcombine "$spn" "$tpn" pre1.dof.gz -invert2
+	    echo areg2 "$tgt" "$src" -dofin pre1.dof.gz -dofout pre2.dof.gz -parin lev0.reg 
+	    areg2 "$tgt" "$src" -dofin pre1.dof.gz -dofout pre2.dof.gz -parin lev0.reg 
+	    # nmi1=$( evaluation "$tgt" "$src" | grep NMI | cut -d : -f 2 )
+	    nmi2=$( evaluation "$tgt" "$src" -dofin pre1.dof.gz | grep NMI | cut -d : -f 2 )
+	    nmi3=$( evaluation "$tgt" "$src" -dofin pre2.dof.gz | grep NMI | cut -d : -f 2 )
+	    cp pre2.dof.gz dofout.dof.gz
+	    better=$( echo $nmi3 '>' $nmi2 | bc ) ; [[ $better -eq 0 ]] && cp pre1.dof.gz dofout.dof.gz
 	fi
     
 	if [[ $lev == 1 ]] ; then
@@ -234,3 +268,115 @@ EOF
 done >reg-l$level-i$idx.log 2>&1
 
 mv reg-l$level-i$idx.log $wd/
+
+exit 0
+
+
+        dofcombine "$spn" "$tpn" pre.dof.gz -invert2
+        echo areg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg 
+        areg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg 
+    fi
+    
+    if [[ $lev == 1 ]] ; then
+	
+	cat >lev1.reg << EOF
+
+#
+# Registration parameters
+#
+
+No. of resolution levels          = 2
+No. of bins                       = 64
+Epsilon                           = 0.0001
+Padding value                     = 0
+Source padding value              = 0
+Similarity measure                = NMI
+Interpolation mode                = Linear
+
+#
+# Registration parameters for resolution level 1
+#
+
+Resolution level                  = 1
+Target blurring (in mm)           = 0
+Target resolution (in mm)         = 0 0 0
+Source blurring (in mm)           = 0
+Source resolution (in mm)         = 0 0 0
+No. of iterations                 = 40
+Minimum length of steps           = 0.01
+Maximum length of steps           = 1
+
+#
+# Registration parameters for resolution level 2
+#
+
+Resolution level                  = 2
+Target blurring (in mm)           = 1.5
+Target resolution (in mm)         = 3 3 3
+Source blurring (in mm)           = 1.5
+Source resolution (in mm)         = 3 3 3
+No. of iterations                 = 40
+Minimum length of steps           = 0.01
+Maximum length of steps           = 1
+
+EOF
+
+	echo areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
+	areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
+    fi
+    
+    if [[ $lev == 2 ]] ; then
+	cat >lev2.reg << EOF
+
+#
+# Non-rigid registration parameters
+#
+
+Lambda1                           = 0.0001
+Lambda2                           = 1
+Lambda3                           = 1
+Control point spacing in X        = 6
+Control point spacing in Y        = 6
+Control point spacing in Z        = 6
+Subdivision                       = True
+MFFDMode                          = True
+
+#
+# Registration parameters
+#
+
+No. of resolution levels          = 1
+No. of bins                       = 128
+Epsilon                           = 0.0001
+Padding value                     = 0
+Source padding value              = 0
+Similarity measure                = NMI
+Interpolation mode                = Linear
+
+#
+# Skip resolution level 1
+#
+
+Resolution level                  = 1
+Target blurring (in mm)           = 0
+Target resolution (in mm)         = 0 0 0
+Source blurring (in mm)           = 0
+Source resolution (in mm)         = 0 0 0
+No. of iterations                 = 40
+Minimum length of steps           = 0.01
+Maximum length of steps           = 2
+
+EOF
+
+	echo nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
+	nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
+    fi
+
+    transformation "$msk" masktr.nii.gz -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
+    transformation "$src" srctr.nii.gz -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
+    transformation "$alt" alttr.nii.gz -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
+    cp masktr.nii.gz "$masktr"
+    cp srctr.nii.gz "$srctr"   
+    cp alttr.nii.gz "$alttr"   
+    cp dofout.dof.gz "$dofout"
+done
