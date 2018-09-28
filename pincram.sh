@@ -146,7 +146,7 @@ assess() {
 
 origin() {
     img="$1" ; shift
-    info $img | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6
+    info $img | grep -v File.name | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6
 }
 
 nmi() {
