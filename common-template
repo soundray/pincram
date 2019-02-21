@@ -30,12 +30,14 @@ export PINCRAM_PROCEED_PCT=100 ## Minimum % ratio of expected atlas transformati
 # For new installations: adapt paths to dependencies
 #####
 
-PATH=/***PATH/TO***/niftyseg/bin:$PATH  ## https://sourceforge.net/projects/niftyseg/
+base_sw_path=$HOME/software ## 
 
-PATH=/***PATH/TO***/irtk/bin:$PATH ## https://github.com/BioMedIA/IRTK -- currently needed even if PINCRAM_USE_MIRTK set
+PATH=$base_sw_path/niftyseg/bin:$PATH  ## https://sourceforge.net/projects/niftyseg/
 
-PATH=/***PATH/TO***/mirtk/build-gcc/lib/tools:$PATH ## https://github.com/BioMedIA/MIRTK -- currently needed even if PINCRAM_USE_MIRTK not set
-LD_LIBRARY_PATH=/***PATH/TO***/mirtk/build-gcc/lib:$LD_LIBRARY_PATH
+PATH=$base_sw_path/irtk/bin:$PATH ## https://github.com/BioMedIA/IRTK -- currently needed even if PINCRAM_USE_MIRTK set
+
+PATH=$base_sw_path/mirtk/build-gcc/lib/tools:$PATH ## https://github.com/BioMedIA/MIRTK -- currently needed even if PINCRAM_USE_MIRTK not set
+LD_LIBRARY_PATH=$base_sw_path/mirtk/build-gcc/lib:$LD_LIBRARY_PATH
 
 export PATH LD_LIBRARY_PATH
 
