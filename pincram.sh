@@ -157,8 +157,8 @@ nmi() {
 distmap() {
     local img=$1 ; shift
     local out=$1
-    seg_maths $img -smo 6 -otsu -sub 1 -mul -1 dm-otsu.nii.gz 
-    calculate-distance-map dm-otsu.nii.gz $out
+    seg_maths $img -smo 6 -otsu im-otsu.nii.gz 
+    calculate-distance-map im-otsu.nii.gz $out
 }
  
 ### Core working directory
