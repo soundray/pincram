@@ -91,7 +91,7 @@ case $arch in
 	chunkn=$[ $atlasn / $jobs ]
 	[[ $chunkn -eq 0 ]] && chunkn=1
 	csec=$[$levelplus ** 4 * $chunkn]
-	cat $datalist | parallel --no-notice -j $jobs $script &
+	cat $datalist | xargs -L 1 -P $jobs $script &
 	msg "Estimated processing time $csec seconds"
 	echo $csec
 	;;

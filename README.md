@@ -18,7 +18,7 @@ It produces
 
 corresponding to the target image.
 
-Pincram works with GNU parallel or PBS to parallelize the atlas-target registrations.
+Pincram works with xargs or PBS to parallelize the atlas-target registrations.
 
 ## Dependencies
 
