@@ -449,7 +449,7 @@ done
 
 ### Calculate success index (SI)
 
-echo -n "SI:" ; labelStats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -false | tee si.csv
+echo -n "SI:" ; labelStats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -false | tee "$result"/si.csv
 
 
 ### Generate alt (ICV) masks
