@@ -21,9 +21,9 @@ Copyright (C) 2012-2018 Rolf A. Heckemann
 Web site: http://www.soundray.org/pincram
 
 Usage: $0 <input> <options> <-result result-dir/> \\
-                       [-workdir working_directory/] [-savewd] [-pickup previous_dir/]\\
-                       [-atlas atlas_directory/ | -atlas file.csv] [-atlasn N ] \\
-                       [-levels {1..3}] [-par max_parallel_jobs] [-ref ref.nii.gz]
+                       [-workdir working_directory/] [-savewd] [-savedm] [-pickup previous_dir/] \\
+                       [-atlas atlas_directory/ | -atlas file.csv] [-atlasn N ] [-levels {1..3}] \\
+                       [-par max_parallel_jobs] [-ref ref.nii.gz]
 
 <input>     : T1-weighted magnetic resonance image in gzipped NIfTI format.
 
@@ -41,6 +41,9 @@ Usage: $0 <input> <options> <-result result-dir/> \\
 -savewd     : By default, the temporary directory under the working directory will be deleted 
               after processing. Set this flag to save intermediate files in the -result location.
 
+-savedm     : By default, the final distance map is discarded. Set this flag to save it to the result 
+              directory instead
+
 -atlas      : Atlas directory.
               Has to contain images/m{1..n}.nii.gz, brainmasks/m{1..n}.nii.gz, affinenorm/m{1..n}.dof.gz,
               and refspace/img.nii.gz (unless -tpn given).
@@ -51,7 +54,7 @@ Usage: $0 <input> <options> <-result result-dir/> \\
               Atlasname should be unique across entries. Note: mask voxels should range from -1 (background)
               to 1 (foreground); discrete or probabilistic maps are both allowed. Prime masks are typically
               parenchyma masks and alternative masks are intracranial volume masks, but this can be swapped.
-              The probability output is calculated on the prime (Column 5) input.
+              The output distance map is calculated on the prime (Column 5) input.
 
 -tpn        : Transformation for positional normalization or normalization to a reference space
 
@@ -89,6 +92,7 @@ do
 	-pickup)         pickup=$(normalpath "$2"); shift;;
 	-ref)               ref=$(normalpath "$2"); shift;;
 	-savewd)         savewd=1 ;;
+	-savedm)         savedm=1 ;;
 	-atlasn)         atlasn="$2"; shift;;
 	-levels)         levels="$2"; shift;;
 	-par)               par="$2"; shift;;
@@ -439,10 +443,10 @@ for level in $(seq 0 $maxlevel) ; do
     ## Target data mask (skip on last iteration)
     set -- $( head -n $nselected weights-$thislevel.csv | cut -d , -f 2 )
     scalefactor=$( echo $@ | sed 's/ / + /g' | bc -l )
-    seg_maths tmask-$thislevel-sel-sum.nii.gz -div $scalefactor probmap-$thislevel.nii.gz
+    seg_maths tmask-$thislevel-sel-sum.nii.gz -div $scalefactor distmap-$thislevel.nii.gz
     [ $level -eq $maxlevel ] && continue
     thresh2=$( echo "( $level - 6 )^2 / 5" | bc -l )
-    seg_maths probmap-$thislevel.nii.gz -abs -uthr $thresh2 -bin dmargin-$thislevel.nii.gz 
+    seg_maths distmap-$thislevel.nii.gz -abs -uthr $thresh2 -bin dmargin-$thislevel.nii.gz 
     tmg="$PWD"/dmargin-$thislevel.nii.gz
 done
 
@@ -492,8 +496,8 @@ tar -cf reg-dofs.tar reg*.dof.gz ; rm reg*.dof.gz
 
 headertool parenchyma1.nii.gz parenchyma.nii.gz -origin $originalorigin
 headertool icv1.nii.gz icv.nii.gz -origin $originalorigin
-headertool probmap-$thislevel.nii.gz prime-probmap.nii.gz -origin $originalorigin
-cp parenchyma.nii.gz icv.nii.gz prime-probmap.nii.gz "$result"/
+[[ $savedm == 1 ]] && headertool distmap-$thislevel.nii.gz "$result"/prime-distmap.nii.gz -origin $originalorigin
+cp parenchyma.nii.gz icv.nii.gz "$result"/
 [[ -s assess.log ]] && cp assess.log "$result"/
 
 msg "$(date)"
