@@ -49,7 +49,7 @@ then
     cp x$idx0 thischunk
     rm x????
 else
-    cp $wd/job.conf thischunk
+    echo $@ >thischunk
 fi
 
 cat thischunk | sort -R | while read params
