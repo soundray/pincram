@@ -237,9 +237,9 @@ echo "$commandline" >commandline.log
 originalorigin=$(origin "$tgt")
 if [[ -z $pickup ]] 
 then 
-    headertool "$tgt" target-full.nii.gz -origin 0 0 0
-    convert target-full.nii.gz target-full.nii.gz -float
-    [ -e "$ref" ] && headertool "$ref" ref.nii.gz -origin 0 0 0 && chmod +w ref.nii.gz
+    edit-image "$tgt" target-full.nii.gz -origin 0 0 0
+    convert-image target-full.nii.gz target-full.nii.gz -float
+    [ -e "$ref" ] && edit-image "$ref" ref.nii.gz -origin 0 0 0 && chmod +w ref.nii.gz
     if [[ -n $refspace ]] ; then
 	if which calculate-distance-map >/dev/null 2>&1 ; then
 	    msg "Calculating affine normalization to reference space with distance maps"
@@ -478,8 +478,8 @@ rm alttr-*.nii.gz
 seg_maths altmsk-sum.nii.gz -div $altc -thr 0 -bin altmsk-bin.nii.gz
 seg_maths altmsk-bin.nii.gz -mul tmask-$thislevel-sel.nii.gz andmask.nii.gz
 seg_maths altmsk-bin.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask.nii.gz
-convert andmask.nii.gz parenchyma1.nii.gz -uchar >>noisy.log 2>&1
-convert ormask.nii.gz icv1.nii.gz -uchar >>noisy.log 2>&1
+convert-image andmask.nii.gz parenchyma1.nii.gz -uchar >>noisy.log 2>&1
+convert-image ormask.nii.gz icv1.nii.gz -uchar >>noisy.log 2>&1
 
 
 ### Compare output mask with reference
@@ -494,9 +494,9 @@ tar -cf reg-dofs.tar reg*.dof.gz ; rm reg*.dof.gz
 
 ### Apply original origin settings and copy output
 
-headertool parenchyma1.nii.gz parenchyma.nii.gz -origin $originalorigin
-headertool icv1.nii.gz icv.nii.gz -origin $originalorigin
-[[ $savedm == 1 ]] && headertool distmap-$thislevel.nii.gz "$result"/prime-distmap.nii.gz -origin $originalorigin
+edit-image parenchyma1.nii.gz parenchyma.nii.gz -origin $originalorigin
+edit-image icv1.nii.gz icv.nii.gz -origin $originalorigin
+[[ $savedm == 1 ]] && edit-image distmap-$thislevel.nii.gz "$result"/prime-distmap.nii.gz -origin $originalorigin
 cp parenchyma.nii.gz icv.nii.gz "$result"/
 [[ -s assess.log ]] && cp assess.log "$result"/
 
