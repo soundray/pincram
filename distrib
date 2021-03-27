@@ -95,6 +95,16 @@ case $arch in
 	msg "Estimated processing time $csec seconds"
 	echo $csec
 	;;
+    bash-single)
+	atlasn=$(cat $datalist | wc -l)
+	levelplus=$[$level + 3]
+	chunkn=$[ $atlasn / $jobs ]
+	[[ $chunkn -eq 0 ]] && chunkn=1
+	csec=$[$levelplus ** 4 * $chunkn]
+	cat $datalist | xargs -L 1 -P 1 $script &
+	msg "Estimated processing time $csec seconds"
+	echo $csec
+	;;
     *)
 	fatal "$arch not implemented"
 esac

@@ -324,7 +324,7 @@ for level in $(seq 0 $maxlevel) ; do
 
 	if [[ ! -s $masktr ]]
 	then
-	    echo "-tgt $tgt" "-src $src" "-srctr $srctr" "-msk $msk" "-masktr $masktr" "-alt $alt" "-alttr $alttr" "-dofin $dofin" "-dofout $dofout" "-spn $spn" "-tpn $tpn" "-lev $level -tmargin $tmg" >>$td/job.conf
+	    echo "-tgt $tgt" "-src $src" "-srctr $srctr" "-msk $msk" "-masktr $masktr" "-alt $alt" "-alttr $alttr" "-dofin $dofin" "-dofout $dofout" "-spn $spn" "-tpn $tpn" "-lev $level" "-tmargin $tmg" "-par $par" >>$td/job.conf
 	fi
     done
 
@@ -489,7 +489,7 @@ assess parenchyma1.nii.gz | tee -a assess.log
 
 ### Package and delete transformations
 
-tar -cf reg-dofs.tar reg*.dof.gz ; rm reg*.dof.gz
+tar -cf reg-dofs.tar reg*.dof* ; rm reg*.dof*
 
 
 ### Apply original origin settings and copy output

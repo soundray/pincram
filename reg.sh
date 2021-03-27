@@ -3,6 +3,7 @@
 pn=$(basename "$0")
 commandline="$pn $*"
 
+cdir=/home/x_rolhe/software/pincram/pincram
 . $cdir/common
 . $cdir/functions
 
@@ -21,7 +22,7 @@ set -e   # Terminate script at first error
 level=$LEVEL
 
 case "$PINCRAM_ARCH" in
-    bash)
+    bash-single | bash)
 	idx=$PARALLEL_SEQ
 	wd=$PWD
 	chunkn=1
@@ -74,6 +75,7 @@ do
 	    -tpn)               tpn=$(normalpath "$2"); shift;;
 	    -tmargin)       tmargin=$(normalpath "$2"); shift;;
 	    -lev)               lev="$2"; shift;;
+	    -par)               par="$2"; shift;;
 	    --) shift; break;;
             -*)
 		fatal "Parameter error" ;;
@@ -90,42 +92,49 @@ do
     if [[ -n "$PINCRAM_USE_MIRTK" ]] ; then
 
 	if [[ $lev == 0 ]] ; then
-	    invert-dof "$tpn" tpninv.dof 
-	    compose-dofs "$spn" tpninv.dof dofout.dof
-	    # register $tgt $src -model Rigid -dofin pre.dof -dofout dofout.dof
+	    mirtk compose-dofs "$spn" "$tpn" dofout-m-$lev-pre.dof -scale 1 -1
+	    mirtk register "$tgt" "$src" \
+		-model Rigid \
+		-dofout dofout-m-$lev.dof \
+		-dofin dofout-m-$lev-pre.dof \
+		-levels 4 4 \
+		-threads $par 
 	fi
-
+	
 	if [[ $lev == 1 ]] ; then
-	    register "$tgt" "$src" \
-		-dofin "$dofin" -dofout dofout.dof \
+	    mirtk register "$tgt" "$src" \
 		-model Affine \
+		-dofout dofout-m-$lev.dof \
+		-dofin "$dofin" \
+		-mask "$tmargin" \
 		-par "Background value" 0 \
-		-par "No. of resolution levels" 2 \
 		-par "Image interpolation" "Fast linear" \
-		-mask "$tmargin" 
+		-levels 4 3 \
+		-threads $par
 	fi
-
+	
 	if [[ $lev == 2 ]] ; then
-	    register "$tgt" "$src" \
-		-dofin "$dofin" -dofout dofout.dof \
+	    mirtk register "$tgt" "$src" \
 		-model FFD \
+		-dofout dofout-m-$lev.dof \
+		-dofin "$dofin" \
+		-mask "$tmargin" \
 		-par "Background value" 0 \
 		-par "No. of resolution levels" 2 \
 		-par "Control point spacing [mm]" 3 \
 		-par "Image interpolation" "Fast linear" \
-		-mask "$tmargin" 
+		-levels 4 3 \
+		-threads $par
 	fi
 
-	tempmasktr=$(echo "$masktr" | tr '/' '_')
-	tempsrctr=$(echo "$srctr" | tr '/' '_')
-	tempalttr=$(echo "$alttr" | tr '/' '_')
-	tempdof=$(echo "$dofout" | tr '/' '_')
-	transform-image "$msk" $tempmasktr -interp "Linear" -Sp -1 -dofin dofout.dof -target "$tgt" || fatal "Failure at masktr"
-	transform-image "$src" $tempsrctr -interp "Linear" -Sp -1 -dofin dofout.dof -target "$tgt"  || fatal "Failure at srctr"
-	transform-image "$alt" $tempalttr -interp "Linear" -Sp -1 -dofin dofout.dof -target "$tgt"  || fatal "Failure at alttr"
-	gzip dofout.dof
-	mv dofout.dof.gz $tempdof
-    else
+	transform-image "$msk" $masktr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt" || fatal "Failure at masktr"
+	transform-image "$src" $srctr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt"  || fatal "Failure at srctr"
+	transform-image "$alt" $alttr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt"  || fatal "Failure at alttr"
+	mv dofout-m-$lev.dof "$dofout"
+    fi
+
+
+    if [[ -n "$PINCRAM_USE_IRTK" ]] ; then 
 
         if [[ $lev == 0 ]] ; then
 	    cat >lev0.reg << EOF
@@ -272,111 +281,3 @@ mv reg-l$level-i$idx.log $wd/
 exit 0
 
 
-        dofcombine "$spn" "$tpn" pre.dof.gz -invert2
-        echo areg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg 
-        areg2 "$tgt" "$src" -dofin pre.dof.gz -dofout dofout.dof.gz -parin lev0.reg 
-    fi
-    
-    if [[ $lev == 1 ]] ; then
-	
-	cat >lev1.reg << EOF
-
-#
-# Registration parameters
-#
-
-No. of resolution levels          = 2
-No. of bins                       = 64
-Epsilon                           = 0.0001
-Padding value                     = 0
-Source padding value              = 0
-Similarity measure                = NMI
-Interpolation mode                = Linear
-
-#
-# Registration parameters for resolution level 1
-#
-
-Resolution level                  = 1
-Target blurring (in mm)           = 0
-Target resolution (in mm)         = 0 0 0
-Source blurring (in mm)           = 0
-Source resolution (in mm)         = 0 0 0
-No. of iterations                 = 40
-Minimum length of steps           = 0.01
-Maximum length of steps           = 1
-
-#
-# Registration parameters for resolution level 2
-#
-
-Resolution level                  = 2
-Target blurring (in mm)           = 1.5
-Target resolution (in mm)         = 3 3 3
-Source blurring (in mm)           = 1.5
-Source resolution (in mm)         = 3 3 3
-No. of iterations                 = 40
-Minimum length of steps           = 0.01
-Maximum length of steps           = 1
-
-EOF
-
-	echo areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
-	areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg
-    fi
-    
-    if [[ $lev == 2 ]] ; then
-	cat >lev2.reg << EOF
-
-#
-# Non-rigid registration parameters
-#
-
-Lambda1                           = 0.0001
-Lambda2                           = 1
-Lambda3                           = 1
-Control point spacing in X        = 6
-Control point spacing in Y        = 6
-Control point spacing in Z        = 6
-Subdivision                       = True
-MFFDMode                          = True
-
-#
-# Registration parameters
-#
-
-No. of resolution levels          = 1
-No. of bins                       = 128
-Epsilon                           = 0.0001
-Padding value                     = 0
-Source padding value              = 0
-Similarity measure                = NMI
-Interpolation mode                = Linear
-
-#
-# Skip resolution level 1
-#
-
-Resolution level                  = 1
-Target blurring (in mm)           = 0
-Target resolution (in mm)         = 0 0 0
-Source blurring (in mm)           = 0
-Source resolution (in mm)         = 0 0 0
-No. of iterations                 = 40
-Minimum length of steps           = 0.01
-Maximum length of steps           = 2
-
-EOF
-
-	echo nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
-	nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg 
-    fi
-
-    transformation "$msk" masktr.nii.gz -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
-    transformation "$src" srctr.nii.gz -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
-    transformation "$alt" alttr.nii.gz -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
-    cp masktr.nii.gz "$masktr"
-    cp srctr.nii.gz "$srctr"   
-    cp alttr.nii.gz "$alttr"   
-    cp dofout.dof.gz "$dofout"
-done
