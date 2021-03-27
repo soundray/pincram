@@ -92,13 +92,13 @@ do
     if [[ -n "$PINCRAM_USE_MIRTK" ]] ; then
 
 	if [[ $lev == 0 ]] ; then
-	    mirtk compose-dofs "$spn" "$tpn" dofout-m-$lev-pre.dof -scale 1 -1
-	    mirtk register "$tgt" "$src" \
-		-model Rigid \
-		-dofout dofout-m-$lev.dof \
-		-dofin dofout-m-$lev-pre.dof \
-		-levels 4 4 \
-		-threads $par 
+	    mirtk compose-dofs "$spn" "$tpn" dofout-m-$lev.dof -scale 1 -1
+#	    mirtk register "$tgt" "$src" \
+#		-model Rigid \
+#		-dofout dofout-m-$lev.dof \
+#		-dofin dofout-m-$lev-pre.dof \
+#		-levels 4 4 \
+#		-threads $par 
 	fi
 	
 	if [[ $lev == 1 ]] ; then
