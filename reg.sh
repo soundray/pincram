@@ -17,7 +17,7 @@ finish () {
     exit
 }
 
-dofcmp () {
+cmpdofs () {
     # Is dof1 better than dof2?
     local img1=$1 ; shift
     local img2=$1 ; shift
