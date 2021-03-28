@@ -28,8 +28,6 @@ cmpdofs () {
     return $( echo $nmi1 '>' $nmi2 | bc )
 }
 
-
-
 set -e   # Terminate script at first error
 
 level=$LEVEL
@@ -112,8 +110,9 @@ do
 		-dofin dof-pre.dof \
 		-levels 4 4 \
 		-bg 0 \
-		-threads $par 
-	    if [[ $( cmpdofs "$tgt" "$src" dof-pre.dof dof-reg.dof ) ]] ; then
+		-threads $par
+	    cmp=$( cmpdofs "$tgt" "$src" dof-pre.dof dof-reg.dof )
+	    if [[ $cmp == 1 ]] ; then
 		cp dof-pre.dof dofout-m-$lev.dof
 	    else
 		cp dof-reg.dof dofout-m-$lev.dof
