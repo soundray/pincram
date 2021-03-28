@@ -103,6 +103,7 @@ do
     if [[ -n "$PINCRAM_USE_MIRTK" ]] ; then
 
 	if [[ $lev == 0 ]] ; then
+	    set -vx
 	    mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
 	    mirtk register "$tgt" "$src" \
 		-model Rigid \
@@ -293,8 +294,6 @@ EOF
 	mv dofout.dof.gz $dofout
     fi
 done >reg-l$level-i$idx.log 2>&1
-
-mv reg-l$level-i$idx.log $wd/
 
 exit 0
 
