@@ -359,7 +359,7 @@ for level in $(seq 0 $maxlevel) ; do
 	if [[ $(date +%s ) -gt $etasec ]] 
 	then
 	    echo
-	    msg "Masks not ready by deadline. Relaunching registrations"
+	    fatal "Masks not ready by deadline. Relaunching registrations" # TODO: change back to "msg"
 	    csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level -jobs $par)
 	    etasec=$(( $(date +%s) + $csec ))
 	    eta=$(date -d "@$etasec")
