@@ -98,6 +98,7 @@ do
 		-dofout dofout-m-$lev.dof \
 		-dofin dofout-m-$lev-pre.dof \
 		-levels 4 4 \
+		-bg 0 \
 		-threads $par 
 	fi
 	
