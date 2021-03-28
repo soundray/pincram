@@ -17,6 +17,19 @@ finish () {
     exit
 }
 
+dofcmp () {
+    # Is dof1 better than dof2?
+    local img1=$1 ; shift
+    local img2=$1 ; shift
+    local dof1=$1 ; shift
+    local dof2=$1 ; shift
+    nmi1=$( mirtk evaluate-similarity $img1 $img2 -csv -dofin $dof1 | cut -d , -f 9 | tail -n 1 )
+    nmi2=$( mirtk evaluate-similarity $img1 $img2 -csv -dofin $dof2 | cut -d , -f 9 | tail -n 1 )
+    return $( echo $nmi1 '>' $nmi2 | bc )
+}
+
+
+
 set -e   # Terminate script at first error
 
 level=$LEVEL
@@ -92,14 +105,19 @@ do
     if [[ -n "$PINCRAM_USE_MIRTK" ]] ; then
 
 	if [[ $lev == 0 ]] ; then
-	    mirtk compose-dofs "$spn" "$tpn" dofout-m-$lev-pre.dof -scale 1 -1
+	    mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
 	    mirtk register "$tgt" "$src" \
 		-model Rigid \
-		-dofout dofout-m-$lev.dof \
-		-dofin dofout-m-$lev-pre.dof \
+		-dofout dof-reg.dof \
+		-dofin dof-pre.dof \
 		-levels 4 4 \
 		-bg 0 \
 		-threads $par 
+	    if [[ $( cmpdofs "$tgt" "$src" dof-pre.dof dof-reg.dof ) ]] ; then
+		cp dof-pre.dof dofout-m-$lev.dof
+	    else
+		cp dof-reg.dof dofout-m-$lev.dof
+	    fi
 	fi
 	
 	if [[ $lev == 1 ]] ; then
