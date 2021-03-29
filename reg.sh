@@ -105,7 +105,7 @@ do
 	if [[ $lev == 0 ]] ; then
 	    mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
 	    mirtk register "$tgt" "$src" \
-		-model Rigid \
+		-model Rigid+Affine \
 		-dofout dof-reg.dof \
 		-dofin dof-pre.dof \
 		-levels 4 4 \
@@ -121,12 +121,12 @@ do
 	
 	if [[ $lev == 1 ]] ; then
 	    mirtk register "$tgt" "$src" \
-		-model Affine \
+		-model Rigid+Affine \
 		-dofout dofout-m-$lev.dof \
 		-dofin "$dofin" \
 		-mask "$tmargin" \
 		-bg 0 \
-		-levels 4 3 \
+		-levels 3 3 \
 		-threads $par
 	fi
 
