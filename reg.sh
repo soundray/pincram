@@ -23,9 +23,9 @@ cmpdofs () {
     local img2=$1 ; shift
     local dof1=$1 ; shift
     local dof2=$1 ; shift
-    nmi1=$( mirtk evaluate-similarity $img1 $img2 -csv -dofin $dof1 | cut -d , -f 9 | tail -n 1 )
-    nmi2=$( mirtk evaluate-similarity $img1 $img2 -csv -dofin $dof2 | cut -d , -f 9 | tail -n 1 )
-    return $( echo $nmi1 '>' $nmi2 | bc )
+    nmi1=$( mirtk evaluate-similarity $img1 $img2 -csv -dofin $dof1 -threads $par | cut -d , -f 9 | tail -n 1 )
+    nmi2=$( mirtk evaluate-similarity $img1 $img2 -csv -dofin $dof2 -threads $par | cut -d , -f 9 | tail -n 1 )
+    echo $nmi1 '>' $nmi2 | bc 
 }
 
 set -e   # Terminate script at first error
