@@ -126,20 +126,22 @@ do
 		-dofout dofout-m-$lev.dof \
 		-dofin "$dofin" \
 		-mask "$tmargin" \
-		-par "Background value" 0 \
-		-par "Image interpolation" "Fast linear" \
+		-bg 0 \
 		-levels 4 3 \
 		-threads $par
+	    cmp=$( cmpdofs "$tgt" "$src" "$dofin" dof-m-$lev.dof )
+	    if [[ $cmp == 1 ]] ; then
+		cp "$dofin" dofout-m-$lev.dof
+	    fi
 	fi
-	
+
 	if [[ $lev == 2 ]] ; then
 	    mirtk register "$tgt" "$src" \
 		-model FFD \
 		-dofout dofout-m-$lev.dof \
 		-dofin "$dofin" \
 		-mask "$tmargin" \
-		-par "Background value" 0 \
-		-par "No. of resolution levels" 2 \
+		-bg -1 \
 		-par "Control point spacing [mm]" 3 \
 		-par "Image interpolation" "Fast linear" \
 		-levels 4 3 \
