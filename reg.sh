@@ -103,7 +103,6 @@ do
     if [[ -n "$PINCRAM_USE_MIRTK" ]] ; then
 
 	if [[ $lev == 0 ]] ; then
-	    set -vx
 	    mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
 	    mirtk register "$tgt" "$src" \
 		-model Rigid \
@@ -129,10 +128,6 @@ do
 		-bg 0 \
 		-levels 4 3 \
 		-threads $par
-	    cmp=$( cmpdofs "$tgt" "$src" "$dofin" dof-m-$lev.dof )
-	    if [[ $cmp == 1 ]] ; then
-		cp "$dofin" dofout-m-$lev.dof
-	    fi
 	fi
 
 	if [[ $lev == 2 ]] ; then
