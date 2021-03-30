@@ -125,7 +125,7 @@ do
 		-dofin "$dofin" \
 		-mask "$tmargin" \
 		-bg -1 \
-		-levels 3 3 \
+		-levels 2 2 \
 		-threads $par
 	fi
 
@@ -138,7 +138,7 @@ do
 		-bg -1 \
 		-par "Control point spacing [mm]" 3 \
 		-par "Image interpolation" "Fast linear" \
-		-levels 4 3 \
+		-levels 3 3 \
 		-threads $par
 	fi
 
