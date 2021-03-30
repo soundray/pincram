@@ -136,7 +136,8 @@ do
 		-dofin "$dofin" \
 		-mask "$tmargin" \
 		-bg -1 \
-		-levels 4 3 \
+		-levels 1 1 \
+		-ds 6 \
 		-threads $par
 	fi
 
