@@ -3,7 +3,6 @@
 pn=$(basename "$0")
 commandline="$pn $*"
 
-cdir=/home/x_rolhe/software/pincram/pincram
 . $cdir/common
 . $cdir/functions
 
