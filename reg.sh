@@ -124,7 +124,7 @@ do
 		-dofout dofout-m-$lev.dof \
 		-dofin "$dofin" \
 		-mask "$tmargin" \
-		-bg 0 \
+		-bg -1 \
 		-levels 3 3 \
 		-threads $par
 	fi
