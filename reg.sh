@@ -131,7 +131,7 @@ do
 
 	if [[ $lev == 2 ]] ; then
 	    mirtk register "$tgt" "$src" \
-		-model FFD \
+		-model SVFFD \
 		-dofout dofout-m-$lev.dof \
 		-dofin "$dofin" \
 		-mask "$tmargin" \
