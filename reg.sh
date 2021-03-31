@@ -72,18 +72,18 @@ do
     while [ $# -gt 0 ]
     do
 	case "$1" in
-	    -tgt)               tgt=$(normalpath "$2"); shift;;
-	    -src)               src=$(normalpath "$2"); shift;;
-	    -srctr)           srctr=$(normalpath "$2"); shift;;
-	    -msk)               msk=$(normalpath "$2"); shift;;
-	    -masktr)         masktr=$(normalpath "$2"); shift;;
-	    -alt)               alt=$(normalpath "$2"); shift;;
-	    -alttr)           alttr=$(normalpath "$2"); shift;;
-	    -dofin)           dofin=$(normalpath "$2"); shift;;
-	    -dofout)         dofout=$(normalpath "$2"); shift;;
-	    -spn)               spn=$(normalpath "$2"); shift;;
-	    -tpn)               tpn=$(normalpath "$2"); shift;;
-	    -tmargin)       tmargin=$(normalpath "$2"); shift;;
+	    -tgt)               tgt=$(realpath "$2"); shift;;
+	    -src)               src=$(realpath "$2"); shift;;
+	    -srctr)           srctr=$(realpath "$2"); shift;;
+	    -msk)               msk=$(realpath "$2"); shift;;
+	    -masktr)         masktr=$(realpath "$2"); shift;;
+	    -alt)               alt=$(realpath "$2"); shift;;
+	    -alttr)           alttr=$(realpath "$2"); shift;;
+	    -dofin)           dofin=$(realpath "$2"); shift;;
+	    -dofout)         dofout=$(realpath "$2"); shift;;
+	    -spn)               spn=$(realpath "$2"); shift;;
+	    -tpn)               tpn=$(realpath "$2"); shift;;
+	    -tmargin)       tmargin=$(realpath "$2"); shift;;
 	    -lev)               lev="$2"; shift;;
 	    -par)               par="$2"; shift;;
 	    --) shift; break;;
@@ -137,7 +137,6 @@ do
 		-mask "$tmargin" \
 		-bg -1 \
 		-levels 1 1 \
-		-ds 6 \
 		-threads $par
 	fi
 
@@ -291,5 +290,3 @@ EOF
 done >reg-l$level-i$idx.log 2>&1
 
 exit 0
-
-
