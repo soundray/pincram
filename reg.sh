@@ -137,7 +137,7 @@ do
 		-mask "$tmargin" \
 		-bg -1 \
 		-levels 1 1 \
-		-ds 5 \
+		-ds 6 \
 		-threads $par
 	fi
 
