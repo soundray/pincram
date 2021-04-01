@@ -3,10 +3,10 @@
 cdir=$(dirname "$0")
 . $cdir/common
 . $cdir/functions
-cdir=$(normalpath "$cdir")
+cdir=$(realpath "$cdir")
 
-atlasdir=$(normalpath "$1") ; shift
-atlascsv=$(normalpath "$1")
+atlasdir=$(realpath "$1") ; shift
+atlascsv=$(realpath "$1")
 
 echo "$atlasdir" >"$atlascsv"
 

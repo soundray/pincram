@@ -5,7 +5,7 @@ set -e
 cdir=$(dirname "$0")
 . $cdir/common
 . $cdir/functions
-cdir=$(normalpath "$cdir")
+cdir=$(realpath "$cdir")
 
 pn=$(basename $0)
 
@@ -71,26 +71,26 @@ EOF
 
 [ $# -lt 3 ] && fatal "Too few parameters"
 
-tgt=$(normalpath "$1") ; shift
+tgt=$(realpath "$1") ; shift
 test -e $tgt || fatal "No image found -- $t"
 
 tpn=
 result=
 par=1
 ref=none
-atlas=$(normalpath "$cdir"/atlas)
+atlas=$(realpath "$cdir"/atlas)
 atlasn=0
 workdir=$PWD
 pickup=
 while [ $# -gt 0 ]
 do
     case "$1" in
-	-tpn)               tpn=$(normalpath "$2"); shift;;
-	-result)         result=$(normalpath "$2"); shift;;
-	-atlas)           atlas=$(normalpath "$2"); shift;;
-	-workdir)       workdir=$(normalpath "$2"); shift;;
-	-pickup)         pickup=$(normalpath "$2"); shift;;
-	-ref)               ref=$(normalpath "$2"); shift;;
+	-tpn)               tpn=$(realpath "$2"); shift;;
+	-result)         result=$(realpath "$2"); shift;;
+	-atlas)           atlas=$(realpath "$2"); shift;;
+	-workdir)       workdir=$(realpath "$2"); shift;;
+	-pickup)         pickup=$(realpath "$2"); shift;;
+	-ref)               ref=$(realpath "$2"); shift;;
 	-savewd)         savewd=1 ;;
 	-savedm)         savedm=1 ;;
 	-atlasn)         atlasn="$2"; shift;;

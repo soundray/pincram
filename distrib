@@ -3,7 +3,7 @@
 cdir=$(dirname "$0")
 . "$cdir"/common
 . "$cdir"/functions
-cdir=$(normalpath "$cdir")
+cdir=$(realpath "$cdir")
 export cdir
 
 pn=$(basename "$0")
@@ -39,7 +39,7 @@ level=$ilevel
 [[ $level =~ ^[0-9]+%?$ ]] || fatal "Non-numeric setting for -level. level = $level ilevel = $ilevel"
 
 [[ -e $datalist ]] || fatal "Data list $datalist not found"
-datalist=$(normalpath $datalist)
+datalist=$(realpath $datalist)
 
 
 export LEVEL=$level 

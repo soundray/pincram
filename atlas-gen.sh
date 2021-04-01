@@ -23,7 +23,7 @@ usage () {
 cdir=$(dirname "$0")
 . "$cdir"/common
 . "$cdir"/functions
-cdir=$(normalpath "$cdir")
+cdir=$(realpath "$cdir")
 
 pn=$(basename "$0")
 
@@ -42,11 +42,11 @@ norm=$cdir/neutral.dof.gz
 while [[ $# -gt 0 ]]
 do
     case "$1" in
-        -img)               img=$(normalpath "$2"); shift;;
-        -mask)              msk=$(normalpath "$2"); shift;;
-        -icv)               icv=$(normalpath "$2"); shift;;
-	-affinenorm)       norm=$(normalpath "$2"); shift;;
-	-dir)          atlasdir=$(normalpath "$2"); shift;;
+        -img)               img=$(realpath "$2"); shift;;
+        -mask)              msk=$(realpath "$2"); shift;;
+        -icv)               icv=$(realpath "$2"); shift;;
+	-affinenorm)       norm=$(realpath "$2"); shift;;
+	-dir)          atlasdir=$(realpath "$2"); shift;;
         -base)            bname="$2" ;;
         --) shift; break;;
         -*)
