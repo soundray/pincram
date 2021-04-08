@@ -140,8 +140,8 @@ finish () {
 
 assess() {
     local glabels="$1"
-    if [ -e ref.nii.gz ] ; then
-	transformation "$glabels" assess.nii.gz -target ref.nii.gz >>noisy.log 2>&1
+    if [[ -e ref.nii.gz ]] ; then
+	transform-image "$glabels" assess.nii.gz -target ref.nii.gz >>noisy.log 2>&1
 	echo -e "${glabels}:\t\t"$(labelStats ref.nii.gz assess.nii.gz -false)
     fi
     return 0
@@ -154,7 +154,14 @@ origin() {
 
 nmi() {
     local img=$1
-    evaluation target-full.nii.gz $img -Tp 0 -mask emargin-$thislevel-dil.nii.gz | grep NMI | cut -d ' ' -f 2
+    evaluate-similarity \
+	target-full.nii.gz $img \
+	-mask emargin-$thislevel-dil.nii.gz \
+	-metric NMI \
+	-precision 7 \
+	-table \
+	-threads 1 \
+	-noid | tail -n 1
 }
 
 distmap() {
@@ -410,8 +417,8 @@ for level in $(seq 0 $maxlevel) ; do
 	done
 	wait
 	cat simm-$thislevel-s*.csv | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
-	rm simm-$thislevel-s*.csv
     fi
+    rm simm-$thislevel-s*.csv
 	
     tar -cf srctr-$thislevel.tar srctr-$thislevel-s*.nii.gz ; rm srctr-$thislevel-s*.nii.gz
     tar -cf alttr-$thislevel.tar alttr-$thislevel-s*.nii.gz
