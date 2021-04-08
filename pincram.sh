@@ -68,7 +68,7 @@ pn=$(basename "$ppath")
 
 commandline="$pn $*"
 
-[ $# -lt 3 ] && fatal "Too few parameters"
+[[ $# -lt 3 ]] && fatal "Too few parameters"
 
 tgt=$(realpath "$1") ; shift
 test -e $tgt || fatal "No image found -- $t"
@@ -81,7 +81,7 @@ atlas=$(realpath "$cdir"/atlas)
 atlasn=0
 workdir=$PWD
 pickup=
-while [ $# -gt 0 ]
+while [[ $# -gt 0 ]]
 do
     case "$1" in
 	-tpn)               tpn=$(realpath "$2"); shift;;
@@ -103,11 +103,11 @@ do
     shift
 done
 
-[ -n "$result" ] || fatal "Result directory name not set (e.g. -result pincram-masks)"
+[[ -n "$result" ]] || fatal "Result directory name not set (e.g. -result pincram-masks)"
 mkdir -p "$result" 
 [[ -d "$result" ]] || fatal "Failed to create directory for result output ($result)"
 
-[ -e "$atlas" ] || fatal "Atlas directory or file does not exist"
+[[ -e "$atlas" ]] || fatal "Atlas directory or file does not exist"
 
 ## Set levels to three unless set to 1 or 2 via -levels option
 [[ "$levels" =~ ^[1-2]$ ]] || levels=3
@@ -133,28 +133,34 @@ finish () {
 	chmod -R u+rwX $td
 	mv "$td" "$result"
     else
-	rm -rf "$td"
+	echo disabled rm -rf "$td"
     fi
     exit
+}
+
+labelstats() {
+    local i1=$1 ; shift
+    local i2=$1 ; shift
+    mirtk evaluate-label-overlap $i1 $i2 -precision 5 -table -noid | tail -n 1
 }
 
 assess() {
     local glabels="$1"
     if [[ -e ref.nii.gz ]] ; then
-	transform-image "$glabels" assess.nii.gz -target ref.nii.gz >>noisy.log 2>&1
-	echo -e "${glabels}:\t\t"$(labelStats ref.nii.gz assess.nii.gz -false)
+	mirtk edit-image "$glabels" assess.nii.gz -copy-size ref.nii.gz >>noisy.log 2>&1
+	echo -e "${glabels}:\t\t"$(labelstats ref.nii.gz assess.nii.gz -false)
     fi
     return 0
 }
 
 origin() {
     img="$1" ; shift
-    info $img | grep -v File.name | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6
+    mirtk info $img | grep -v File.name | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6
 }
 
 nmi() {
     local img=$1
-    evaluate-similarity \
+    mirtk evaluate-similarity \
 	target-full.nii.gz $img \
 	-mask emargin-$thislevel-dil.nii.gz \
 	-metric NMI \
@@ -168,7 +174,7 @@ distmap() {
     local img=$1 ; shift
     local out=$1
     seg_maths $img -smo 6 -otsu im-otsu.nii.gz 
-    calculate-distance-map im-otsu.nii.gz $out
+    mirtk calculate-distance-map im-otsu.nii.gz $out
 }
  
 ### Core working directory
@@ -208,8 +214,8 @@ msg "Working in directory $td"
 ### Atlas database read and check
 
 if [[ -d "$atlas" ]] ; then
-    if [[ -e "$atlas"/atlases.csv ]] ; then
-	atlas="$atlas"/atlases.csv
+    if [[ -e "$atlas"/etc/atlases.csv ]] ; then
+	atlas="$atlas"/etc/atlases.csv
     else
 	"$cdir"/atlas-csv-gen.sh "$atlas" atlases.csv
 	atlas=$PWD/atlases.csv
@@ -243,26 +249,29 @@ echo "$commandline" >commandline.log
 originalorigin=$(origin "$tgt")
 if [[ -z $pickup ]] 
 then 
-    edit-image "$tgt" target-full.nii.gz -origin 0 0 0
-    convert-image target-full.nii.gz target-full.nii.gz -float
-    [ -e "$ref" ] && edit-image "$ref" ref.nii.gz -origin 0 0 0 && chmod +w ref.nii.gz
+    mirtk edit-image "$tgt" target-full.nii.gz -origin 0 0 0
+    mirtk convert-image target-full.nii.gz target-full.nii.gz -float
+    [[ -e "$ref" ]] && mirtk edit-image "$ref" ref.nii.gz -origin 0 0 0 && chmod +w ref.nii.gz
     if [[ -n $refspace ]] ; then
-	if which calculate-distance-map >/dev/null 2>&1 ; then
-	    msg "Calculating affine normalization to reference space with distance maps"
-	    if [[ -e $refspacedm ]] ; then
-		cp $refspacedm refspace-dm.nii.gz
-	    else
-		distmap $refspace refspace-dm.nii.gz 
-	    fi
-	    distmap target-full.nii.gz target-dm.nii.gz 
-	    echo "Similarity measure = SSD" >areg2.par
-	    areg2 refspace-dm.nii.gz target-dm.nii.gz -dofout pre-dof.gz -parin areg2.par >noisy.log 2>&1
-	    areg2 $refspace target-full.nii.gz -dofin pre-dof.gz -dofout tpn.dof.gz >noisy.log 2>&1
-	    tpn=$td/tpn.dof.gz
+	msg "Calculating affine normalization to reference space with distance maps"
+	if [[ -e $refspacedm ]] ; then
+	    cp $refspacedm refspace-dm.nii.gz
 	else
-	    msg "Calculating affine normalization to reference space"
-	    areg2 $refspace target-full.nii.gz -dofout tpn.dof.gz >noisy.log 2>&1 
+	    distmap $refspace refspace-dm.nii.gz 
 	fi
+	distmap target-full.nii.gz target-dm.nii.gz 
+	mirtk register refspace-dm.nii.gz target-dm.nii.gz \
+	      -model Affine \
+	      -sim SSD \
+	      -dofout pre-dof.gz \
+	      -level 4 \
+	      -threads $par >noisy.log 2>&1
+	mirtk register $refspace target-full.nii.gz \
+	      -model Affine \
+	      -dofin pre-dof.gz \
+	      -dofout tpn.dof.gz \
+	      -levels 3 1 \
+	      -threads $par >noisy.log 2>&1
     fi
 fi
 
@@ -424,10 +433,10 @@ for level in $(seq 0 $maxlevel) ; do
     tar -cf alttr-$thislevel.tar alttr-$thislevel-s*.nii.gz
     maxweight=$(head -n 1 simm-$thislevel.csv | cut -d , -f 1)
     nselected=$[$thissize*$usepercent/100]
-    [ $nselected -lt 9 ] && nselected=7
+    [[ $nselected -lt 9 ]] && nselected=7
     split -l $nselected ranking-$thislevel.csv
     mv xaa selection-$thislevel.csv
-    [ -e xab ] && cat x?? > unselected-$thislevel.csv
+    [[ -e xab ]] && cat x?? > unselected-$thislevel.csv
     msg "Selected $nselected at $thislevel"
 
 
@@ -450,7 +459,7 @@ for level in $(seq 0 $maxlevel) ; do
     set -- $( head -n $nselected weights-$thislevel.csv | cut -d , -f 2 )
     scalefactor=$( echo $@ | sed 's/ / + /g' | bc -l )
     seg_maths tmask-$thislevel-sel-sum.nii.gz -div $scalefactor distmap-$thislevel.nii.gz
-    [ $level -eq $maxlevel ] && continue
+    [[ $level -eq $maxlevel ]] && continue
     thresh2=$( echo "( $level - 6 )^2 / 5" | bc -l )
     seg_maths distmap-$thislevel.nii.gz -abs -uthr $thresh2 -bin dmargin-$thislevel.nii.gz 
     tmg="$PWD"/dmargin-$thislevel.nii.gz
@@ -459,7 +468,7 @@ done
 
 ### Calculate success index (SI)
 
-echo -n "SI:" ; labelStats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -false | tee "$result"/si.csv
+echo -n "SI:" ; labelstats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -false | tee "$result"/si.csv
 
 
 ### Generate alt (ICV) masks
@@ -484,8 +493,8 @@ rm alttr-*.nii.gz
 seg_maths altmsk-sum.nii.gz -div $altc -thr 0 -bin altmsk-bin.nii.gz
 seg_maths altmsk-bin.nii.gz -mul tmask-$thislevel-sel.nii.gz andmask.nii.gz
 seg_maths altmsk-bin.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask.nii.gz
-convert-image andmask.nii.gz parenchyma1.nii.gz -uchar >>noisy.log 2>&1
-convert-image ormask.nii.gz icv1.nii.gz -uchar >>noisy.log 2>&1
+mirtk convert-image andmask.nii.gz parenchyma1.nii.gz -uchar >>noisy.log 2>&1
+mirtk convert-image ormask.nii.gz icv1.nii.gz -uchar >>noisy.log 2>&1
 
 
 ### Compare output mask with reference
@@ -500,9 +509,9 @@ tar -cf reg-dofs.tar reg*.dof* ; rm reg*.dof*
 
 ### Apply original origin settings and copy output
 
-edit-image parenchyma1.nii.gz parenchyma.nii.gz -origin $originalorigin
-edit-image icv1.nii.gz icv.nii.gz -origin $originalorigin
-[[ $savedm == 1 ]] && edit-image distmap-$thislevel.nii.gz "$result"/prime-distmap.nii.gz -origin $originalorigin
+mirtk edit-image parenchyma1.nii.gz parenchyma.nii.gz -origin $originalorigin
+mirtk edit-image icv1.nii.gz icv.nii.gz -origin $originalorigin
+[[ $savedm == 1 ]] && mirtk edit-image distmap-$thislevel.nii.gz "$result"/prime-distmap.nii.gz -origin $originalorigin
 cp parenchyma.nii.gz icv.nii.gz "$result"/
 [[ -s assess.log ]] && cp assess.log "$result"/
 
