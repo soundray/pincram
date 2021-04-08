@@ -50,8 +50,8 @@ type help-rst >/dev/null 2>&1 || fatal "MIRTK not on $PATH"
 eucmap() {
     local mask=$1 ; shift
     local map=$1
-    mirtk calculate-distance-map $mask dm.nii.gz -threads 32
-    mirtk calculate-element-wise dm.nii.gz -mul -1 -threads 32 -o $map
+    mirtk calculate-distance-map $mask dm.nii.gz -threads $par
+    mirtk calculate-element-wise dm.nii.gz -mul -1 -threads $par -o $map
 }
 
 [[ $# -lt 4 ]] && fatal "Parameter error"
@@ -61,6 +61,7 @@ icv=
 atlasdir=
 bname=
 inorm=
+par=1
 while [[ $# -gt 0 ]]
 do
     case "$1" in
@@ -70,6 +71,7 @@ do
 	-affinenorm)      inorm=$(realpath "$2"); shift;;
 	-dir)          atlasdir=$(realpath "$2"); shift;;
         -base)            bname="$2" ; shift ;;
+        -par)               par="$2" ; shift ;;
         --) shift; break;;
         -*)
             fatal "Parameter error" ;;
@@ -112,7 +114,7 @@ if [[ -e "$dmtarget" ]] ; then
     if [[ -n "$inorm" ]] ; then
 	cp "$inorm" "$affnorm"
     else
-	mirtk register "$dmtarget" "$mskdm" -model Affine -sim SSD -dofout $affnorm -threads 32
+	mirtk register "$dmtarget" "$mskdm" -model Affine -sim SSD -dofout $affnorm -threads $par
     fi
 else
     cp $cdir/neutral.dof.gz "$affnorm"
