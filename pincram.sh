@@ -2,16 +2,6 @@
 
 set -e
 
-cdir=$(dirname "$0")
-. $cdir/common
-. $cdir/functions
-cdir=$(realpath "$cdir")
-
-pn=$(basename $0)
-
-commandline="$pn $*"
-
-
 ### Usage & parameter handling
 
 usage () {
@@ -68,6 +58,15 @@ Usage: $0 <input> <options> <-result result-dir/> \\
 
 EOF
 }
+
+ppath=$(realpath "$BASH_SOURCE")
+cdir=$(dirname "$ppath")
+pn=$(basename "$ppath")
+
+. "$cdir"/common
+. "$cdir"/functions
+
+commandline="$pn $*"
 
 [ $# -lt 3 ] && fatal "Too few parameters"
 
