@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 ppath=$(realpath "$BASH_SOURCE")
 cdir=$(dirname "$ppath")
 pn=$(basename "$ppath")
@@ -13,11 +12,9 @@ atlascsv=$(realpath "$1")
 
 echo "$atlasdir" >"$atlascsv"
 
-find "$atlasdir"/images/ -name m\*.nii.gz | while read i 
+cat "$atlasdir"/etc/entry-* | while read bn
 do
-    bn=$(basename "$i" .nii.gz)
-    echo $bn,images/$bn.nii.gz,marginmasks/$bn.nii.gz,affinenorm/$bn.dof.gz,brainmasks/$bn.nii.gz,icvmasks/$bn.nii.gz
+    echo $bn,base/images/$bn.nii.gz,cache/affinenorm/$bn.dof.gz,cache/brainmasks-dm/$bn.nii.gz,cache/icvmasks-dm/$bn.nii.gz
 done >>$atlascsv
 
 exit 0
-
