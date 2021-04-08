@@ -1,10 +1,13 @@
 #!/bin/bash
 
-pn=$(basename "$0")
-commandline="$pn $*"
+ppath=$(realpath "$BASH_SOURCE")
+cdir=$(dirname "$ppath")
+pn=$(basename "$ppath")
 
-. $cdir/common
-. $cdir/functions
+. "$cdir"/common
+. "$cdir"/functions
+
+commandline="$pn $*"
 
 finish () {
     savewd=1

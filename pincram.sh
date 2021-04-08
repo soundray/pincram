@@ -133,7 +133,7 @@ finish () {
 	chmod -R u+rwX $td
 	mv "$td" "$result"
     else
-	echo disabled rm -rf "$td"
+	rm -rf "$td"
     fi
     exit
 }
@@ -141,7 +141,7 @@ finish () {
 labelstats() {
     local i1=$1 ; shift
     local i2=$1 ; shift
-    mirtk evaluate-label-overlap $i1 $i2 -precision 5 -table -noid | tail -n 1
+    mirtk evaluate-label-overlap $i1 $i2 -precision 6 -table -noid | tail -n 1
 }
 
 assess() {
@@ -409,29 +409,18 @@ for level in $(seq 0 $maxlevel) ; do
 
     ## Selection
     msg "Selecting"
-    if [[ $par -eq 1 ]]
-    then
-	for srcindex in $(cat selection-$prevlevel.csv) ; do
-	    srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
-	    if [[ -e $srctr ]] && [[ ! -z $srctr ]] ; then
-		echo $( nmi $srctr )",$srcindex"
-	    fi
-	done | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
-    else
-	for srcindex in $(cat selection-$prevlevel.csv) ; do
-	    srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
-	    if [[ -e $srctr ]] && [[ ! -z $srctr ]] ; then
-		echo $( nmi $srctr )",$srcindex" > simm-$thislevel-s$srcindex.csv & brake $par
-	    fi
-	done
-	wait
-	cat simm-$thislevel-s*.csv | sort -rn | tee simm-$thislevel.csv | cut -d , -f 2 > ranking-$thislevel.csv
-    fi
-    rm simm-$thislevel-s*.csv
-	
+    set -- $(cat selection-$prevlevel.csv)
+    set -- $(for i ; do ls srctr-$thislevel-s$i.nii.gz ; done)
+    evaluate-similarity target-full.nii.gz $@ \
+			-mask emargin-$thislevel-dil.nii.gz \
+			-metric NMI -precision 7 -threads $par \
+			-table -header off |\
+	rev | cut -d s -f 1 | rev | sort -rn -t , -k 2 | tee simm-$thislevel.csv |\
+	cut -d , -f 1 >ranking-$thislevel.csv
+
     tar -cf srctr-$thislevel.tar srctr-$thislevel-s*.nii.gz ; rm srctr-$thislevel-s*.nii.gz
     tar -cf alttr-$thislevel.tar alttr-$thislevel-s*.nii.gz
-    maxweight=$(head -n 1 simm-$thislevel.csv | cut -d , -f 1)
+    maxweight=$(head -n 1 simm-$thislevel.csv | cut -d , -f 2)
     nselected=$[$thissize*$usepercent/100]
     [[ $nselected -lt 9 ]] && nselected=7
     split -l $nselected ranking-$thislevel.csv
@@ -441,7 +430,7 @@ for level in $(seq 0 $maxlevel) ; do
 
 
     ## Build label from selection
-    head -n $nselected simm-$thislevel.csv | tr , ' ' | while read nmi s
+    head -n $nselected simm-$thislevel.csv | tr , ' ' | while read s nmi
     do
         weight=$(echo '1 / ( '$maxweight' - 1 ) * ( '$nmi' - 1 )' | bc -l )
         echo $s,$weight >>weights-$thislevel.csv

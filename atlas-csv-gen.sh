@@ -1,9 +1,12 @@
 #!/bin/bash
 
-cdir=$(dirname "$0")
-. $cdir/common
-. $cdir/functions
-cdir=$(realpath "$cdir")
+
+ppath=$(realpath "$BASH_SOURCE")
+cdir=$(dirname "$ppath")
+pn=$(basename "$ppath")
+
+. "$cdir"/common
+. "$cdir"/functions
 
 atlasdir=$(realpath "$1") ; shift
 atlascsv=$(realpath "$1")

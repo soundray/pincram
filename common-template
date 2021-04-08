@@ -2,6 +2,7 @@
 # Parallelization architecture / middleware
 #####
 
+# PINCRAM_ARCH=bash-single ## Use for multicore architectures
 # PINCRAM_ARCH=bash
 # PINCRAM_ARCH=ge
 PINCRAM_ARCH=pbs
@@ -36,8 +37,9 @@ PATH=$base_sw_path/niftyseg/bin:$PATH  ## https://sourceforge.net/projects/nifty
 
 PATH=$base_sw_path/irtk/bin:$PATH ## https://github.com/BioMedIA/IRTK -- currently needed even if PINCRAM_USE_MIRTK set
 
-PATH=$base_sw_path/mirtk/build-gcc/lib/tools:$PATH ## https://github.com/BioMedIA/MIRTK -- currently needed even if PINCRAM_USE_MIRTK not set
-LD_LIBRARY_PATH=$base_sw_path/mirtk/build-gcc/lib:$LD_LIBRARY_PATH
+PATH=$base_sw_path/mirtk/build/bin:$PATH ## https://github.com/BioMedIA/MIRTK -- currently needed even if PINCRAM_USE_MIRTK not set
+PATH=$base_sw_path/mirtk/build/lib/tools:$PATH
+LD_LIBRARY_PATH=$base_sw_path/mirtk/build/lib:$LD_LIBRARY_PATH
 
 export PATH LD_LIBRARY_PATH
 
