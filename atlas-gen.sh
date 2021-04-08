@@ -1,15 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-usage () {
+set -e
+
+usage() {
     msg "
 
     Usage: $pn -img 3d-image.nii.gz -mask brainmask.nii.gz -icv icvmask.nii.gz \\
            -dir atlas-directory 
-
-    Takes an image, a brain mask, an intracranial volume mask, and a directory 
-    name and creates a pincram-compatible atlas structure under the directory
-
-    Note: at least 20 sets are needed for a pincram atlas
 
     Options:
 
@@ -17,37 +14,62 @@ usage () {
 
     [-affinenorm norm.dof.gz] Affine transformation normalizing entry to a common space. 
                               If not supplied, a neutral transformation is copied.
+
+    Prepare a pincram-compatible atlas directory
+
+    Note: at least 20 sets are needed for a pincram atlas
+
+    If only -base basename and -dir atlas-directory are supplied, the script generates 
+    contents of atlas-directory/cache using data in atlas-directory/base for the 
+    corresponding entry. The idea is that the cache directory can be deleted for a 
+    compact atlas representation and recreated as and when pincram is to be run.
+
+    If an image, a brain mask, and an intracranial volume mask are supplied, 
+    the script generates contents of atlas-directory/base and atlas-directory/cache.
+
+    If atlas-directory/base/refspace/brainmask-dm.nii.gz does not exist, the script 
+    copies brainmask.nii.gz to this location. When you populate a new atlas directory,
+    start with the participant whose images shall serve as the reference for 
+    pre-alignment.
+
     "
 }
 
-cdir=$(dirname "$0")
+ppath=$(realpath "$BASH_SOURCE")
+cdir=$(dirname "$ppath")
+pn=$(basename "$ppath")
+
 . "$cdir"/common
 . "$cdir"/functions
-cdir=$(realpath "$cdir")
-
-pn=$(basename "$0")
 
 td=$(tempdir)
 trap 'rm -rf $td' EXIT
 
-which help-rst >/dev/null 2>&1 || fatal "MIRTK not on $PATH"
+type help-rst >/dev/null 2>&1 || fatal "MIRTK not on $PATH"
 
-[[ $# -lt 8 ]] && fatal "Parameter error"
+eucmap() {
+    local mask=$1 ; shift
+    local map=$1
+    mirtk calculate-distance-map $mask dm.nii.gz -threads 32
+    mirtk calculate-element-wise dm.nii.gz -mul -1 -threads 32 -o $map
+}
+
+[[ $# -lt 4 ]] && fatal "Parameter error"
 img=
 msk=
 icv=
 atlasdir=
 bname=
-norm=$cdir/neutral.dof.gz
+inorm=
 while [[ $# -gt 0 ]]
 do
     case "$1" in
         -img)               img=$(realpath "$2"); shift;;
         -mask)              msk=$(realpath "$2"); shift;;
         -icv)               icv=$(realpath "$2"); shift;;
-	-affinenorm)       norm=$(realpath "$2"); shift;;
+	-affinenorm)      inorm=$(realpath "$2"); shift;;
 	-dir)          atlasdir=$(realpath "$2"); shift;;
-        -base)            bname="$2" ;;
+        -base)            bname="$2" ; shift ;;
         --) shift; break;;
         -*)
             fatal "Parameter error" ;;
@@ -56,42 +78,47 @@ do
     shift
 done
 
-[[ -n "$img" ]] || fatal "Input image not provided"
-[[ -e "$img" ]] || fatal "Input image file does not exist"
-
-entree=$atlasdir/etc/entry-$bname
-
-[[ -e $entree ]] && fatal "Entry $bname exists. Set a different -base"
-
 launchdir="$PWD"
 cd $td
 
-cp "$img" image.nii.gz
-cp "$msk" mask.nii.gz
+[[ -z $bname ]] && bname=$(basename $img .nii.gz)
+entree="$atlasdir"/etc/entry-$bname
 
-dilate-image mask.nii.gz mask-dil.nii.gz
-erode-image mask.nii.gz mask-ero.nii.gz
-calculate-element-wise mask-dil.nii.gz -sub mask-ero.nii.gz -o margin-d1.nii.gz
-dilate-image margin-d1.nii.gz margin-mask-d5.nii.gz -iterations 4
+mkdir -p \
+      "$atlasdir"/base/images \
+      "$atlasdir"/base/brainmasks \
+      "$atlasdir"/base/icvmasks \
+      "$atlasdir"/base/refspace \
+      "$atlasdir"/cache/brainmasks-dm \
+      "$atlasdir"/cache/icvmasks-dm \
+      "$atlasdir"/cache/affinenorm \
+      "$atlasdir"/etc || fatal "Could not create directory structure"
 
-mkdir -p $atlasdir/images $atlasdir/marginmasks $atlasdir/etc || fatal "Could not create directory structure"
-mkdir -p $atlasdir/brainmasks $atlasdir/icvmasks $atlasdir/affinenorm || fatal "Could not create directory structure"
+if [[ -e $entree ]] ; then
+    msg "Re-creating cache content for $bname"
+else
+    cp "$img" "$atlasdir"/base/images/$bname.nii.gz
+    cp "$msk" "$atlasdir"/base/brainmasks/$bname.nii.gz
+    cp "$icv" "$atlasdir"/base/icvmasks/$bname.nii.gz
+fi
 
-cp image.nii.gz $atlasdir/images/$bname.nii.gz
-cp margin-mask-d5.nii.gz $atlasdir/marginmasks/$bname.nii.gz
-cp mask.nii.gz $atlasdir/brainmasks/$bname.nii.gz
-cp "$icv" $atlasdir/icvmasks/$bname.nii.gz
-cp "$norm" $atlasdir/affinenorm/$bname.dof.gz
+mskdm="$atlasdir"/cache/brainmasks-dm/$bname.nii.gz
+eucmap "$atlasdir"/base/brainmasks/$bname.nii.gz "$mskdm"
+eucmap "$atlasdir"/base/icvmasks/$bname.nii.gz "$atlasdir"/cache/icvmasks-dm/$bname.nii.gz
 
-echo -n $bname, >$entree
-for i in images marginmasks ; do
-    echo -n $i/$bname.nii.gz, >>$entree
-done
-echo -n affinenorm/$bname.dof.gz, >>$entree
-echo -n brainmasks/$bname.nii.gz, >>$entree
-echo -n icvmasks/$bname.nii.gz >>$entree
-echo >>$entree
-echo $atlasdir >$atlasdir/atlas.csv
-cat $atlasdir/etc/entry-* >>$atlasdir/atlas.csv
+affnorm="$atlasdir"/cache/affinenorm/$bname.dof.gz
+dmtarget="$atlasdir"/base/refspace/brainmask-dm.nii.gz
+if [[ -e "$dmtarget" ]] ; then
+    if [[ -n "$inorm" ]] ; then
+	cp "$inorm" "$affnorm"
+    else
+	mirtk register "$dmtarget" "$mskdm" -model Affine -sim SSD -dofout $affnorm -threads 32
+    fi
+else
+    cp $cdir/neutral.dof.gz "$affnorm"
+    cp "$mskdm" "$dmtarget"
+fi
+
+echo $bname >$entree
 
 exit 0
