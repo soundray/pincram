@@ -272,6 +272,7 @@ then
 	      -dofout tpn.dof.gz \
 	      -levels 3 1 \
 	      -threads $par >noisy.log 2>&1
+	tpn=$td/tpn.dof.gz
     fi
 fi
 

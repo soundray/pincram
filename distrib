@@ -34,7 +34,7 @@ jobs=$ijobs
 [[ $jobs =~ ^[0-9]+%?$ ]] || fatal "Non-numeric setting for -jobs"
 
 [[ -n "$PINCRAM_ARCH" ]] && arch="$PINCRAM_ARCH"
-[[ $arch =~ pbs|bash|ge ]] || fatal "Architecture not set or not implemented (\$arch=$arch)"
+[[ $arch =~ pbs|ge|bash|bash-single ]] || fatal "Architecture not set or not implemented (\$arch=$arch)"
 
 level=$ilevel
 [[ $level =~ ^[0-9]+%?$ ]] || fatal "Non-numeric setting for -level. level = $level ilevel = $ilevel"
@@ -42,6 +42,7 @@ level=$ilevel
 [[ -e $datalist ]] || fatal "Data list $datalist not found"
 datalist=$(realpath $datalist)
 
+msg "$arch"
 
 export LEVEL=$level 
 case $arch in
@@ -82,7 +83,7 @@ case $arch in
 		fatal "PBS error"
 		;;
 	esac
-	msg "$arch -- Estimated processing time $csec seconds"
+	msg "Estimated processing time $csec seconds"
 	echo $csec
 	;;
     bash)
