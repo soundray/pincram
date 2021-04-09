@@ -231,9 +231,9 @@ while [[ $# -gt 0 ]] ; do
 done
 
 if [[ -z $tpn ]] ; then
-    refspace=$atlasbase/refspace/img.nii.gz
+    refspace=$atlasbase/base/refspace/img.nii.gz
     [[ -e $refspace ]] || fatal "No reference space declared ($refspace) and -tpn not provided"
-    refspacedm=$atlasbase/refspace/img-otsu-dm.nii.gz
+    refspacedm=$atlasbase/base/refspace/img-otsu-dm.nii.gz
 fi
 
 atlasmax=$[$(cat $atlas | wc -l)-1]
@@ -310,24 +310,14 @@ for level in $(seq 0 $maxlevel) ; do
 	set -- $(head -n $[$srcindex+1] $atlas | tail -n 1 | tr ',' ' ')
 	atlasname=$1 ; shift
 	src=$atlasbase/$1 ; shift
-	mrgorspn=$atlasbase/$1 ; shift
-	if [[ $( basename $mrgorspn ) == $( basename $mrgorspn .dof.gz) ]] ; then
-	    mrg=$mrgorspn
-	    spn=$atlasbase/$1 ; shift
-	else
-	    mrg=
-	    spn=$mrgorspn
-	fi
+	spn=$atlasbase/$1 ; shift
 	msk=$atlasbase/$1 ; shift
 	alt=$atlasbase/$1 ; shift
 	if [[ $level -ge 2 ]] ; then 
 	    mrggen=$td/mrggen-s$srcindex.nii.gz
 	    if [[ ! -e $mrggen ]] ; then
-		if [[ -z $mrg ]] ; then
-		    mrg=$td/mrg-s$srcindex.nii.gz
-		    seg_maths $msk -abs -uthr 7 $mrg
-		fi
-		seg_maths $mrg -bin -mul $src $mrggen
+		mrg=$td/mrg-s$srcindex.nii.gz
+		seg_maths $msk -abs -uthr 7 -bin -mul $src $mrggen
 		src=$mrggen
 	    fi
 	fi
