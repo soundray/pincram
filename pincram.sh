@@ -402,7 +402,7 @@ for level in $(seq 0 $maxlevel) ; do
     msg "Selecting"
     set -- $(cat selection-$prevlevel.csv)
     set -- $(for i ; do ls srctr-$thislevel-s$i.nii.gz ; done)
-    evaluate-similarity target-full.nii.gz $@ \
+    mirtk evaluate-similarity target-full.nii.gz $@ \
 			-mask emargin-$thislevel-dil.nii.gz \
 			-metric NMI -precision 7 -threads $par \
 			-table -header off |\

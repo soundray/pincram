@@ -45,7 +45,7 @@ pn=$(basename "$ppath")
 td=$(tempdir)
 trap 'rm -rf $td' EXIT
 
-type help-rst >/dev/null 2>&1 || fatal "MIRTK not on $PATH"
+type mirtk >/dev/null 2>&1 || fatal "MIRTK not on $PATH"
 
 eucmap() {
     local mask=$1 ; shift
