@@ -143,9 +143,9 @@ do
 		-threads $par
 	fi
 
-	transform-image "$msk" $masktr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt" || fatal "Failure at masktr"
-	transform-image "$src" $srctr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt"  || fatal "Failure at srctr"
-	transform-image "$alt" $alttr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt"  || fatal "Failure at alttr"
+	mirtk transform-image "$msk" $masktr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt" || fatal "Failure at masktr"
+	mirtk transform-image "$src" $srctr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt"  || fatal "Failure at srctr"
+	mirtk transform-image "$alt" $alttr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt"  || fatal "Failure at alttr"
 	mv dofout-m-$lev.dof "$dofout"
     fi
 
