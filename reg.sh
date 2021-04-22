@@ -103,151 +103,151 @@ set -vx
 	continue 
     fi
 
-    if [[ -n "$PINCRAM_USE_GREEDY" ]] ; then
+    case "$PINCRAM_USE_LIB" in
 
-	if [[ $lev == 0 ]] ; then
-	    mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
-	    convert-dof dof-pre.dof dof-pre.mat -output-format flirt -target "$tgt" -source "$src"
-	    greedy -d 3 \
-		   -a \
-		   -dof 6 \
-		   -threads $par \
-		   -ia dof-pre.mat \
-		   -i "$tgt" "$src" \
-		   -o transform.mat \
-		   -m NCC 5x5x5 \
-		   -n 100x0x0 
-	    greedy -d 3 \
-		   -threads $par \
-		   -rf "$tgt" \
-		   -ri LINEAR \
-		   -rm "$msk" $masktr \
-		   -rm "$src" $srctr \
-		   -rm "$alt" $alttr \
-		   -r transform.mat
-	    mv transform.mat "$dofout"
-	
-	fi
+	greedy)
 
-	if [[ $lev == 1 ]] ; then
-	    greedy -d 3 \
-		   -a \
-		   -dof 6 \
-		   -threads $par \
-		   -ia "$dofin" \
-		   -i "$tdm" "$msk" \
-		   -gm "$tmargin" \
-		   -o pre-l1.mat \
-		   -m NCC 5x5x5 \
-		   -n 100x50x0
-	    greedy -d 3 \
-		   -a \
-		   -dof 12 \
-		   -threads $par \
-		   -ia pre-l1.mat \
-		   -i "$tgt" "$src" \
-		   -o transform.mat \
-		   -gm "$tmargin" \
-		   -m NCC 3x3x3 \
-		   -n 40x20x5
-	    greedy -d 3 \
-		   -threads $par \
-		   -rf "$tgt" \
-		   -ri LINEAR \
-		   -rm "$msk" $masktr \
-		   -rm "$src" $srctr \
-		   -rm "$alt" $alttr \
-		   -r transform.mat
-	    mv transform.mat "$dofout"
-	fi
-	
-	if [[ $lev == 2 ]] ; then
-	    greedy -d 3 \
-		   -a \
-		   -dof 12 \
-		   -threads $par \
-		   -ia "$dofin" \
-		   -i "$tdm" "$msk" \
-		   -o pre-l2.mat \
-		   -gm "$tmargin" \
-		   -m NCC 3x3x3 \
-		   -n 100x50x30
-	    greedy -d 3 \
-		   -threads $par \
-		   -i "$tgt" "$src" \
-		   -it pre-l2.mat \
-		   -o transform.nii.gz \
-		   -gm "$tmargin" \
-		   -m NCC 2x2x2 \
-		   -s 1.2vox 0.25vox \
-		   -n 100x50x30 
-	    greedy -d 3 \
-		   -threads $par \
-		   -rf "$tgt" \
-		   -ri LINEAR \
-		   -rm "$msk" $masktr \
-		   -rm "$src" $srctr \
-		   -rm "$alt" $alttr \
-		   -r transform.nii.gz
-	    mv transform.nii.gz "$dofout"
-
-	fi
-
-    fi
-    
-    if [[ -n "$PINCRAM_USE_MIRTK" ]] ; then
-
-	if [[ $lev == 0 ]] ; then
-	    mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
-	    mirtk register "$tgt" "$src" \
-		-model Rigid+Affine \
-		-dofout dof-reg.dof \
-		-dofin dof-pre.dof \
-		-levels 4 4 \
-		-bg 0 \
-		-threads $par
-	    cmp=$( cmpdofs "$tgt" "$src" dof-pre.dof dof-reg.dof )
-	    if [[ $cmp == 1 ]] ; then
-		cp dof-pre.dof dofout-m-$lev.dof
-	    else
-		cp dof-reg.dof dofout-m-$lev.dof
+	    if [[ $lev == 0 ]] ; then
+		mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
+		convert-dof dof-pre.dof dof-pre.mat -output-format flirt -target "$tgt" -source "$src"
+		greedy -d 3 \
+		       -a \
+		       -dof 6 \
+		       -threads $par \
+		       -ia dof-pre.mat \
+		       -i "$tgt" "$src" \
+		       -o transform.mat \
+		       -m NCC 5x5x5 \
+		       -n 100x0x0 
+		greedy -d 3 \
+		       -threads $par \
+		       -rf "$tgt" \
+		       -ri LINEAR \
+		       -rm "$msk" $masktr \
+		       -rm "$src" $srctr \
+		       -rm "$alt" $alttr \
+		       -r transform.mat
+		mv transform.mat "$dofout"
+		
 	    fi
-	fi
-	
-	if [[ $lev == 1 ]] ; then
-	    mirtk register "$tgt" "$src" \
-		-model Rigid+Affine \
-		-dofout dofout-m-$lev.dof \
-		-dofin "$dofin" \
-		-mask "$tmargin" \
-		-bg -1 \
-		-levels 3 3 \
-		-threads $par
-	fi
+	    
+	    if [[ $lev == 1 ]] ; then
+		greedy -d 3 \
+		       -a \
+		       -dof 6 \
+		       -threads $par \
+		       -ia "$dofin" \
+		       -i "$tdm" "$msk" \
+		       -gm "$tmargin" \
+		       -o pre-l1.mat \
+		       -m NCC 5x5x5 \
+		       -n 100x50x0
+		greedy -d 3 \
+		       -a \
+		       -dof 12 \
+		       -threads $par \
+		       -ia pre-l1.mat \
+		       -i "$tgt" "$src" \
+		       -o transform.mat \
+		       -gm "$tmargin" \
+		       -m NCC 3x3x3 \
+		       -n 40x20x5
+		greedy -d 3 \
+		       -threads $par \
+		       -rf "$tgt" \
+		       -ri LINEAR \
+		       -rm "$msk" $masktr \
+		       -rm "$src" $srctr \
+		       -rm "$alt" $alttr \
+		       -r transform.mat
+		mv transform.mat "$dofout"
+	    fi
+	    
+	    if [[ $lev == 2 ]] ; then
+		greedy -d 3 \
+		       -a \
+		       -dof 12 \
+		       -threads $par \
+		       -ia "$dofin" \
+		       -i "$tdm" "$msk" \
+		       -o pre-l2.mat \
+		       -gm "$tmargin" \
+		       -m NCC 3x3x3 \
+		       -n 100x50x30
+		greedy -d 3 \
+		       -threads $par \
+		       -i "$tgt" "$src" \
+		       -it pre-l2.mat \
+		       -o transform.nii.gz \
+		       -gm "$tmargin" \
+		       -m NCC 2x2x2 \
+		       -s 1.2vox 0.25vox \
+		       -n 100x50x30 
+		greedy -d 3 \
+		       -threads $par \
+		       -rf "$tgt" \
+		       -ri LINEAR \
+		       -rm "$msk" $masktr \
+		       -rm "$src" $srctr \
+		       -rm "$alt" $alttr \
+		       -r transform.nii.gz
+		mv transform.nii.gz "$dofout"
+		
+	    fi;;
 
-	if [[ $lev == 2 ]] ; then
-	    mirtk register "$tgt" "$src" \
-		  -model SVFFD \
-		  -par "Bending energy weight" 1e-4 \
-		  -dofout dofout-m-$lev.dof \
-		  -dofin "$dofin" \
-		  -mask "$tmargin" \
-		  -bg -1 \
-		  -levels 1 1 \
-		  -threads $par
-	fi
+    
+	mirtk)
+    
+	    if [[ $lev == 0 ]] ; then
+		mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
+		mirtk register "$tgt" "$src" \
+		      -model Rigid+Affine \
+		      -dofout dof-reg.dof \
+		      -dofin dof-pre.dof \
+		      -levels 4 4 \
+		      -bg 0 \
+		      -threads $par
+		cmp=$( cmpdofs "$tgt" "$src" dof-pre.dof dof-reg.dof )
+		if [[ $cmp == 1 ]] ; then
+		    cp dof-pre.dof dofout-m-$lev.dof
+		else
+		    cp dof-reg.dof dofout-m-$lev.dof
+		fi
+	    fi
+	    
+	    if [[ $lev == 1 ]] ; then
+		mirtk register "$tgt" "$src" \
+		      -model Rigid+Affine \
+		      -dofout dofout-m-$lev.dof \
+		      -dofin "$dofin" \
+		      -mask "$tmargin" \
+		      -bg -1 \
+		      -levels 3 3 \
+		      -threads $par
+	    fi
+	    
+	    if [[ $lev == 2 ]] ; then
+		mirtk register "$tgt" "$src" \
+		      -model SVFFD \
+		      -par "Bending energy weight" 1e-4 \
+		      -dofout dofout-m-$lev.dof \
+		      -dofin "$dofin" \
+		      -mask "$tmargin" \
+		      -bg -1 \
+		      -levels 1 1 \
+		      -threads $par
+	    fi
+	    
+	    mirtk transform-image "$msk" $masktr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt" || fatal "Failure at masktr"
+	    mirtk transform-image "$src" $srctr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt"  || fatal "Failure at srctr"
+	    mirtk transform-image "$alt" $alttr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt"  || fatal "Failure at alttr"
+	    mv dofout-m-$lev.dof "$dofout"
+	    ;;
 
-	mirtk transform-image "$msk" $masktr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt" || fatal "Failure at masktr"
-	mirtk transform-image "$src" $srctr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt"  || fatal "Failure at srctr"
-	mirtk transform-image "$alt" $alttr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt"  || fatal "Failure at alttr"
-	mv dofout-m-$lev.dof "$dofout"
-    fi
+	irtk)
 
-
-    if [[ -n "$PINCRAM_USE_IRTK" ]] ; then 
-
-        if [[ $lev == 0 ]] ; then
-	    cat >lev0.reg << EOF
+            if [[ $lev == 0 ]] ; then
+		cat >lev0.reg << EOF
 #
 # Registration parameters
 #
@@ -274,19 +274,19 @@ Minimum length of steps           = 0.01
 Maximum length of steps           = 2
 
 EOF
-	    dofcombine "$spn" "$tpn" pre1.dof.gz -invert2
-	    echo areg2 "$tgt" "$src" -dofin pre1.dof.gz -dofout pre2.dof.gz -parin lev0.reg 
-	    areg2 "$tgt" "$src" -dofin pre1.dof.gz -dofout pre2.dof.gz -parin lev0.reg 
-	    # nmi1=$( evaluation "$tgt" "$src" | grep NMI | cut -d : -f 2 )
-	    nmi2=$( evaluation "$tgt" "$src" -dofin pre1.dof.gz | grep NMI | cut -d : -f 2 )
-	    nmi3=$( evaluation "$tgt" "$src" -dofin pre2.dof.gz | grep NMI | cut -d : -f 2 )
-	    cp pre2.dof.gz dofout.dof.gz
-	    better=$( echo $nmi3 '>' $nmi2 | bc ) ; [[ $better -eq 0 ]] && cp pre1.dof.gz dofout.dof.gz
-	fi
+		dofcombine "$spn" "$tpn" pre1.dof.gz -invert2
+		echo areg2 "$tgt" "$src" -dofin pre1.dof.gz -dofout pre2.dof.gz -parin lev0.reg 
+		areg2 "$tgt" "$src" -dofin pre1.dof.gz -dofout pre2.dof.gz -parin lev0.reg 
+		# nmi1=$( evaluation "$tgt" "$src" | grep NMI | cut -d : -f 2 )
+		nmi2=$( evaluation "$tgt" "$src" -dofin pre1.dof.gz | grep NMI | cut -d : -f 2 )
+		nmi3=$( evaluation "$tgt" "$src" -dofin pre2.dof.gz | grep NMI | cut -d : -f 2 )
+		cp pre2.dof.gz dofout.dof.gz
+		better=$( echo $nmi3 '>' $nmi2 | bc ) ; [[ $better -eq 0 ]] && cp pre1.dof.gz dofout.dof.gz
+	    fi
     
-	if [[ $lev == 1 ]] ; then
-	
-	    cat >lev1.reg << EOF
+	    if [[ $lev == 1 ]] ; then
+		
+		cat >lev1.reg << EOF
 
 #
 # Registration parameters
@@ -328,13 +328,13 @@ Maximum length of steps           = 1
 
 EOF
 
-	    echo areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg -mask $tmargin
-	    areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg -mask $tmargin
-	fi
-    
-	if [[ $lev == 2 ]] ; then
-	    cat >lev2.reg << EOF
-
+		echo areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg -mask $tmargin
+		areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg -mask $tmargin
+	    fi
+	    
+	    if [[ $lev == 2 ]] ; then
+		cat >lev2.reg << EOF
+		
 #
 # Non-rigid registration parameters
 #
@@ -375,15 +375,20 @@ Maximum length of steps           = 2
 
 EOF
 
-	    echo nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg -mask $tmargin
-	    nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg -mask $tmargin
-	fi
+		echo nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg -mask $tmargin
+		nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg -mask $tmargin
+	    fi
+	    
+	    transformation "$msk" $masktr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
+	    transformation "$src" $srctr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
+	    transformation "$alt" $alttr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
+	    mv dofout.dof.gz $dofout
+	    ;;
 
-	transformation "$msk" $masktr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt" || fatal "Failure at masktr"
-	transformation "$src" $srctr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at srctr"
-	transformation "$alt" $alttr -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"  || fatal "Failure at alttr"
-	mv dofout.dof.gz $dofout
-    fi
+	*)
+	    fatal "Not implemented: $PINCRAM_USE_LIB"
+	    ;;
+    esac
 done >reg-l$level-i$idx.log 2>&1
 
 exit 0

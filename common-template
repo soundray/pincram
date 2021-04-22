@@ -13,10 +13,12 @@ export PINCRAM_PBS_OPTION="-l place=free" ## Per-system options
 
 
 #####
-# To use MIRTK in place of IRTK (experimental, results slightly inferior)
+# Registration library to use
 #####
 
-# export PINCRAM_USE_MIRTK=1 
+# Options are mirtk (recommended), greedy (under development), or irtk (deprecated)
+
+export PINCRAM_USE_LIB=mirtk 
 
 
 #####
