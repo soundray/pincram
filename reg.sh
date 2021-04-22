@@ -68,7 +68,7 @@ fi
 
 cat thischunk | sort -R | while read params
 do
-
+set -vx
     (( loopc += 1 ))
 
     set -- $(echo $params)
@@ -76,6 +76,7 @@ do
     do
 	case "$1" in
 	    -tgt)               tgt=$(realpath "$2"); shift;;
+	    -tdm)               tdm=$(realpath "$2"); shift;;
 	    -src)               src=$(realpath "$2"); shift;;
 	    -srctr)           srctr=$(realpath "$2"); shift;;
 	    -msk)               msk=$(realpath "$2"); shift;;
@@ -102,6 +103,98 @@ do
 	continue 
     fi
 
+    if [[ -n "$PINCRAM_USE_GREEDY" ]] ; then
+
+	if [[ $lev == 0 ]] ; then
+	    mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
+	    convert-dof dof-pre.dof dof-pre.mat -output-format flirt -target "$tgt" -source "$src"
+	    greedy -d 3 \
+		   -a \
+		   -dof 6 \
+		   -threads $par \
+		   -ia dof-pre.mat \
+		   -i "$tgt" "$src" \
+		   -o transform.mat \
+		   -m NCC 5x5x5 \
+		   -n 100x0x0 
+	    greedy -d 3 \
+		   -threads $par \
+		   -rf "$tgt" \
+		   -ri LINEAR \
+		   -rm "$msk" $masktr \
+		   -rm "$src" $srctr \
+		   -rm "$alt" $alttr \
+		   -r transform.mat
+	    mv transform.mat "$dofout"
+	
+	fi
+
+	if [[ $lev == 1 ]] ; then
+	    greedy -d 3 \
+		   -a \
+		   -dof 6 \
+		   -threads $par \
+		   -ia "$dofin" \
+		   -i "$tdm" "$msk" \
+		   -gm "$tmargin" \
+		   -o pre-l1.mat \
+		   -m NCC 5x5x5 \
+		   -n 100x50x0
+	    greedy -d 3 \
+		   -a \
+		   -dof 12 \
+		   -threads $par \
+		   -ia pre-l1.mat \
+		   -i "$tgt" "$src" \
+		   -o transform.mat \
+		   -gm "$tmargin" \
+		   -m NCC 3x3x3 \
+		   -n 40x20x5
+	    greedy -d 3 \
+		   -threads $par \
+		   -rf "$tgt" \
+		   -ri LINEAR \
+		   -rm "$msk" $masktr \
+		   -rm "$src" $srctr \
+		   -rm "$alt" $alttr \
+		   -r transform.mat
+	    mv transform.mat "$dofout"
+	fi
+	
+	if [[ $lev == 2 ]] ; then
+	    greedy -d 3 \
+		   -a \
+		   -dof 12 \
+		   -threads $par \
+		   -ia "$dofin" \
+		   -i "$tdm" "$msk" \
+		   -o pre-l2.mat \
+		   -gm "$tmargin" \
+		   -m NCC 3x3x3 \
+		   -n 100x50x30
+	    greedy -d 3 \
+		   -threads $par \
+		   -i "$tgt" "$src" \
+		   -it pre-l2.mat \
+		   -o transform.nii.gz \
+		   -gm "$tmargin" \
+		   -m NCC 2x2x2 \
+		   -s 1.2vox 0.25vox \
+		   -n 100x50x30 
+	    greedy -d 3 \
+		   -threads $par \
+		   -rf "$tgt" \
+		   -ri LINEAR \
+		   -rm "$msk" $masktr \
+		   -rm "$src" $srctr \
+		   -rm "$alt" $alttr \
+		   -r transform.nii.gz
+	    mv transform.nii.gz "$dofout"
+
+	fi
+
+    fi
+    
     if [[ -n "$PINCRAM_USE_MIRTK" ]] ; then
 
 	if [[ $lev == 0 ]] ; then
@@ -134,13 +227,14 @@ do
 
 	if [[ $lev == 2 ]] ; then
 	    mirtk register "$tgt" "$src" \
-		-model SVFFD \
-		-dofout dofout-m-$lev.dof \
-		-dofin "$dofin" \
-		-mask "$tmargin" \
-		-bg -1 \
-		-levels 1 1 \
-		-threads $par
+		  -model SVFFD \
+		  -par "Bending energy weight" 1e-4 \
+		  -dofout dofout-m-$lev.dof \
+		  -dofin "$dofin" \
+		  -mask "$tmargin" \
+		  -bg -1 \
+		  -levels 1 1 \
+		  -threads $par
 	fi
 
 	mirtk transform-image "$msk" $masktr -interp "Linear" -Sp -1 -dofin dofout-m-$lev.dof -target "$tgt" || fatal "Failure at masktr"

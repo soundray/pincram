@@ -170,11 +170,19 @@ nmi() {
 	-noid | tail -n 1
 }
 
-distmap() {
+odistmap() {
     local img=$1 ; shift
     local out=$1
     seg_maths $img -smo 6 -otsu im-otsu.nii.gz 
-    mirtk calculate-distance-map im-otsu.nii.gz $out
+    mirtk calculate-distance-map im-otsu.nii.gz odm.nii.gz -threads $par
+    mirtk calculate-element-wise odm.nii.gz -mul -1 -threads $par -o $out
+}
+
+eucmap() {
+    local mask=$1 ; shift
+    local map=$1
+    mirtk calculate-distance-map $mask dm.nii.gz -threads $par
+    mirtk calculate-element-wise dm.nii.gz -mul -1 -threads $par -o $map
 }
  
 ### Core working directory
@@ -191,7 +199,7 @@ then
     shift
     while [[ $# -gt 0 ]] 
     do
-	tar xf $1 ; rm $1 ; shift
+	tar -xf $1 ; rm $1 ; shift
     done
     touch 0.log ; rm *.log
     touch weights0.csv ; rm weights*.csv
@@ -257,9 +265,9 @@ then
 	if [[ -e $refspacedm ]] ; then
 	    cp $refspacedm refspace-dm.nii.gz
 	else
-	    distmap $refspace refspace-dm.nii.gz 
+	    odistmap $refspace refspace-dm.nii.gz 
 	fi
-	distmap target-full.nii.gz target-dm.nii.gz 
+	odistmap target-full.nii.gz target-dm.nii.gz 
 	mirtk register refspace-dm.nii.gz target-dm.nii.gz \
 	      -model Affine \
 	      -sim SSD \
@@ -288,13 +296,14 @@ levelname[3]="none"
 ### Initialize first loop
 
 tgt="$PWD"/target-full.nii.gz
+tdm="dummy"
 tmg=$tgt
 level=0
 prevlevel=init
 seq 1 $atlasn >selection-$prevlevel.csv
 nselected=$(cat selection-$prevlevel.csv | wc -l)
 usepercent=$(echo $nselected | awk '{ printf "%.0f", 100*(8/$1)^(1/3) } ')
-
+# usepercent=75
 
 ### Iterate over levels
 
@@ -302,7 +311,7 @@ for level in $(seq 0 $maxlevel) ; do
     thislevel=${levelname[$level]}
     msg "Level $thislevel"
     cat /dev/null >job.conf
-
+    
     ## Prep datasets line by line in job.conf
     for srcindex in $(cat selection-$prevlevel.csv) ; do
 
@@ -330,7 +339,7 @@ for level in $(seq 0 $maxlevel) ; do
 
 	if [[ ! -s $masktr ]]
 	then
-	    echo "-tgt $tgt" "-src $src" "-srctr $srctr" "-msk $msk" "-masktr $masktr" "-alt $alt" "-alttr $alttr" "-dofin $dofin" "-dofout $dofout" "-spn $spn" "-tpn $tpn" "-lev $level" "-tmargin $tmg" "-par $par" >>$td/job.conf
+	    echo "-tgt $tgt" "-tdm $tdm" "-src $src" "-srctr $srctr" "-msk $msk" "-masktr $masktr" "-alt $alt" "-alttr $alttr" "-dofin $dofin" "-dofout $dofout" "-spn $spn" "-tpn $tpn" "-lev $level" "-tmargin $tmg" "-par $par" >>$td/job.conf
 	fi
     done
 
@@ -386,7 +395,7 @@ for level in $(seq 0 $maxlevel) ; do
     [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel"
     set -- $(echo $@ | sed 's/ / -add /g')
     seg_maths $@ -div $thissize tmask-$thislevel-sum.nii.gz
-
+    tdm=$PWD/tmask-$thislevel-sum.nii.gz
 
     ## Generate intermediate target mask
     seg_maths tmask-$thislevel-sum.nii.gz -thr 0 -bin tmask-$thislevel.nii.gz
@@ -484,7 +493,7 @@ assess parenchyma1.nii.gz | tee -a assess.log
 
 ### Package and delete transformations
 
-tar -cf reg-dofs.tar reg*.dof* ; rm reg*.dof*
+# tar -cf reg-dofs.tar reg*.dof* ; rm reg*.dof*
 
 
 ### Apply original origin settings and copy output
