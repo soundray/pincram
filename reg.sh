@@ -334,7 +334,6 @@ EOF
 	    
 	    if [[ $lev == 2 ]] ; then
 		cat >lev2.reg << EOF
-		
 #
 # Non-rigid registration parameters
 #
