@@ -70,7 +70,6 @@ fi
 
 cat thischunk | sort -R | while read params
 do
-set -vx
     (( loopc += 1 ))
 
     set -- $(echo $params)
