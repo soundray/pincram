@@ -28,8 +28,8 @@ usage() {
     the script generates contents of atlas-directory/base and atlas-directory/cache.
 
     If atlas-directory/base/refspace/brainmask-dm.nii.gz does not exist, the script 
-    copies brainmask.nii.gz to this location. When you populate a new atlas directory,
-    start with the participant whose images shall serve as the reference for 
+    copies brainmask.nii.gz and 3d-image.nii.gz to this location. When a new atlas 
+    directory is created, the first participant's image set serves as the reference for 
     pre-alignment.
 
     "
@@ -39,7 +39,6 @@ ppath=$(realpath "$BASH_SOURCE")
 cdir=$(dirname "$ppath")
 pn=$(basename "$ppath")
 
-. "$cdir"/common
 . "$cdir"/functions
 
 td=$(tempdir)
@@ -119,6 +118,7 @@ if [[ -e "$dmtarget" ]] ; then
 else
     cp $cdir/neutral.dof.gz "$affnorm"
     cp "$mskdm" "$dmtarget"
+    cp "$img" "$atlasdir"/base/refspace/img.nii.gz
 fi
 
 echo $bname >$entree

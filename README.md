@@ -32,7 +32,7 @@ http://soundray.org/pincram
 
 ## Instructions
 
-Add pincram directory to PATH.  Copy common-template to common and adapt to system.  Call `pincram.sh` for usage.
+Add pincram directory to PATH.  Review run-pincram script for sample invocation.  Call `pincram.sh` for usage.
 
 ## If you use this software for your research
 

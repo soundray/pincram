@@ -4,10 +4,12 @@ ppath=$(realpath "$BASH_SOURCE")
 cdir=$(dirname "$ppath")
 pn=$(basename "$ppath")
 
-. "$cdir"/common
 . "$cdir"/functions
 
 commandline="$pn $*"
+
+: ${PINCRAM_ARCH:="bash"}
+: ${PINCRAM_USE_LIB:="mirtk"}
 
 finish () {
     savewd=1

@@ -63,10 +63,26 @@ ppath=$(realpath "$BASH_SOURCE")
 cdir=$(dirname "$ppath")
 pn=$(basename "$ppath")
 
-. "$cdir"/common
 . "$cdir"/functions
 
 commandline="$pn $*"
+
+: ${PINCRAM_ARCH:="bash"}
+: ${PINCRAM_USE_LIB:="mirtk"}
+: ${PINCRAM_PROCEED_PCT:=100}
+
+case $PINCRAM_USE_LIB in
+    irtk)
+	type areg2 || fatal "Missing binary: areg2 (IRTK) not on path" ;;
+    mirtk)
+	type mirtk || fatal "Missing binary: mirtk not on path" ;;
+    greedy)
+	type greedy || fatal "Missing binary: greedy not on path" ;;
+esac
+
+export PINCRAM_ARCH PINCRAM_USE_LIB
+
+type seg_maths || fatal "Missing binary: seg_maths (NiftySeg) not on path"
 
 [[ $# -lt 3 ]] && fatal "Too few parameters"
 

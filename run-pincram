@@ -1,15 +1,17 @@
+#!/usr/bin/env bash
+
 #####
 # Parallelization architecture / middleware
 #####
 
-# PINCRAM_ARCH=bash-single ## Use for multicore architectures
-# PINCRAM_ARCH=bash
+PINCRAM_ARCH=bash
+# PINCRAM_ARCH=bash-single
 # PINCRAM_ARCH=ge
-PINCRAM_ARCH=pbs
+# PINCRAM_ARCH=pbs
 export PINCRAM_ARCH
 # export PINCRAM_QUEUE=myqueue ## Gets added to qsub call with -q option
 # export PINCRAM_CHUNKSIZE=1 ## Number of registrations per array subjob
-export PINCRAM_PBS_OPTION="-l place=free" ## Per-system options
+# export PINCRAM_PBS_OPTION="-l place=free" ## Per-system options
 
 
 #####
@@ -18,7 +20,7 @@ export PINCRAM_PBS_OPTION="-l place=free" ## Per-system options
 
 # Options are mirtk (recommended), greedy (under development), or irtk (deprecated)
 
-export PINCRAM_USE_LIB=mirtk 
+export PINCRAM_USE_LIB=irtk 
 
 
 #####
@@ -29,19 +31,33 @@ export PINCRAM_PROCEED_PCT=100 ## Minimum % ratio of expected atlas transformati
                                ## Trades off reproducibility and accuracy against speed
                                ## Reduce for rapid testing or when jobs are executed unreliably
 
+
 #####
-# For new installations: adapt paths to dependencies
+# Set search path
 #####
 
-base_sw_path=$HOME/software ## 
+base_sw_path=$HOME/software 
 
-PATH=$base_sw_path/niftyseg/bin:$PATH  ## https://sourceforge.net/projects/niftyseg/
+## Required -- pincram
+PATH=$base_sw_path/pincram:$PATH
 
-PATH=$base_sw_path/irtk/bin:$PATH ## https://github.com/BioMedIA/IRTK -- currently needed even if PINCRAM_USE_MIRTK set
+## Required -- https://sourceforge.net/projects/niftyseg/
+PATH=$base_sw_path/niftyseg/build/seg-apps:$PATH
 
-PATH=$base_sw_path/mirtk/build/bin:$PATH ## https://github.com/BioMedIA/MIRTK -- currently needed even if PINCRAM_USE_MIRTK not set
-PATH=$base_sw_path/mirtk/build/lib/tools:$PATH
-LD_LIBRARY_PATH=$base_sw_path/mirtk/build/lib:$LD_LIBRARY_PATH
+## Required -- https://github.com/BioMedIA/MIRTK 
+PATH=$base_sw_path/mirtk/install/bin:$PATH
+
+## Optional -- https://github.com/BioMedIA/IRTK 
+# PATH=$base_sw_path/irtk/bin:$PATH 
+
+## Optional https://sourceforge.net/projects/niftyseg/
+# PATH=$base_sw_path/greedy/build:$PATH  
 
 export PATH LD_LIBRARY_PATH
 
+#####
+# Call pincram
+#####
+
+pincram.sh $1 -result result -atlas atlas
+x
