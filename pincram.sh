@@ -257,7 +257,6 @@ done
 if [[ -z $tpn ]] ; then
     refspace=$atlasbase/base/refspace/img.nii.gz
     [[ -e $refspace ]] || fatal "No reference space declared ($refspace) and -tpn not provided"
-    refspacedm=$atlasbase/base/refspace/img-otsu-dm.nii.gz
 fi
 
 atlasmax=$[$(cat $atlas | wc -l)-1]
@@ -278,11 +277,7 @@ then
     [[ -e "$ref" ]] && mirtk edit-image "$ref" ref.nii.gz -origin 0 0 0 && chmod +w ref.nii.gz
     if [[ -n $refspace ]] ; then
 	msg "Calculating affine normalization to reference space with distance maps"
-	if [[ -e $refspacedm ]] ; then
-	    cp $refspacedm refspace-dm.nii.gz
-	else
-	    odistmap $refspace refspace-dm.nii.gz 
-	fi
+	odistmap $refspace refspace-dm.nii.gz 
 	odistmap target-full.nii.gz target-dm.nii.gz 
 	mirtk register refspace-dm.nii.gz target-dm.nii.gz \
 	      -model Affine \
@@ -299,7 +294,6 @@ then
 	tpn=$td/tpn.dof.gz
     fi
 fi
-
 
 ### Array
 
