@@ -119,6 +119,7 @@ else
     cp $cdir/neutral.dof.gz "$affnorm"
     cp "$mskdm" "$dmtarget"
     cp "$img" "$atlasdir"/base/refspace/img.nii.gz
+    echo 'From "'$bname'"' >"$atlasdir"/base/refspace/readme
 fi
 
 echo $bname >$entree
