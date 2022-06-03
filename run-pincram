@@ -20,7 +20,7 @@ export PINCRAM_ARCH
 
 # Options are mirtk (recommended), greedy (under development), or irtk (deprecated)
 
-export PINCRAM_USE_LIB=irtk 
+export PINCRAM_USE_LIB=mirtk 
 
 
 #####
