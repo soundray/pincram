@@ -226,9 +226,7 @@ else
         mkdir -p "$workdir"
         td=$(mktemp -d "$workdir/$(basename $0).XXXXXX") || fatal "Could not create working directory in $workdir"
     else
-        : ${TMPDIR:=/tmp/$USER}
-        mkdir -p $TMPDIR
-        td=$(mktemp -d $TMPDIR/$(basename $0).XXXXXX) || fatal "Could not create working directory in $TMPDIR"
+        td=$(tempdir)
     fi
 fi
 export PINCRAM_WORKDIR=$td
