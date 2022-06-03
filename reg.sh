@@ -200,20 +200,15 @@ do
 	mirtk)
     
 	    if [[ $lev == 0 ]] ; then
-		mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
-		mirtk register "$tgt" "$src" \
-		      -model Rigid+Affine \
-		      -dofout dof-reg.dof \
-		      -dofin dof-pre.dof \
-		      -levels 4 4 \
-		      -bg 0 \
-		      -threads $par
-		cmp=$( cmpdofs "$tgt" "$src" dof-pre.dof dof-reg.dof )
-		if [[ $cmp == 1 ]] ; then
-		    cp dof-pre.dof dofout-m-$lev.dof
-		else
-		    cp dof-reg.dof dofout-m-$lev.dof
-		fi
+          mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
+		      mirtk register "$tgt" "$src" \
+		            -model Rigid+Affine \
+		            -dofout dof-reg.dof \
+		            -dofin dof-pre.dof \
+		            -levels 4 4 \
+		            -bg 0 \
+		            -threads $par
+		      cp dof-reg.dof dofout-m-$lev.dof
 	    fi
 	    
 	    if [[ $lev == 1 ]] ; then
