@@ -81,6 +81,8 @@ case $PINCRAM_USE_LIB in
 esac
 
 export PINCRAM_ARCH PINCRAM_USE_LIB
+msg "Architecture $PINCRAM_ARCH"
+msg "Library $PINCRAM_USE_LIB"
 
 type seg_maths || fatal "Missing binary: seg_maths (NiftySeg) not on path"
 
