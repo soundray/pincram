@@ -11,6 +11,10 @@ commandline="$pn $*"
 : ${PINCRAM_ARCH:="bash"}
 : ${PINCRAM_USE_LIB:="mirtk"}
 
+usage() {
+    msg "reg.sh should not be called directly"
+}
+
 finish () {
     savewd=1
     if [[ $savewd -eq 1 ]] ; then

@@ -6,6 +6,10 @@ pn=$(basename "$ppath")
 
 . "$cdir"/functions
 
+usage() {
+    msg "reg.sh should not be called directly"
+}
+
 atlasdir=$(realpath "$1") ; shift
 atlascsv=$(realpath "$1")
 
