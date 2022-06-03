@@ -60,4 +60,3 @@ export PATH LD_LIBRARY_PATH
 #####
 
 pincram.sh $1 -result result -atlas atlas
-x
