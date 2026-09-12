@@ -15,6 +15,7 @@ let
     pkgs.gnused
     pkgs.gnutar
     pkgs.bc
+    pkgs.util-linux
   ];
 in
 
