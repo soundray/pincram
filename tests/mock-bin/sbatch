@@ -1,0 +1,30 @@
+#!/bin/bash
+# Mock sbatch: records its arguments and runs the --wrap command for every array task in the
+# background (via mock-slurm-task), so that squeue/sacct mocks can report task states.
+dir=${MOCK_SLURM_DIR:?MOCK_SLURM_DIR not set}
+mkdir -p "$dir"
+array= ; wrap= ; chdir=$PWD ; output=/dev/null ; parsable=0
+for a in "$@" ; do
+    case $a in
+        --array=*)    array=${a#*=} ;;
+        --wrap=*)     wrap=${a#*=} ;;
+        --chdir=*)    chdir=${a#*=} ;;
+        --output=*)   output=${a#*=} ;;
+        --parsable)   parsable=1 ;;
+    esac
+done
+[[ -n $array && -n $wrap ]] || { echo "mock sbatch: need --array and --wrap" >&2 ; exit 1 ; }
+jobid=$(( $(cat "$dir/next" 2>/dev/null || echo 1000) + 1 )) ; echo "$jobid" >"$dir/next"
+printf '%s\n' "$@" >"$dir/$jobid.args"
+printf '%s' "$wrap" >"$dir/$jobid.wrap"
+printf '%s' "$chdir" >"$dir/$jobid.chdir"
+printf '%s' "$output" >"$dir/$jobid.output"
+range=${array%\%*} ; throttle=4 ; [[ $array == *%* ]] && throttle=${array#*%}
+first=${range%-*} ; last=${range#*-}
+echo "$first $last" >"$dir/$jobid.range"
+here=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+# shellcheck disable=SC2016  # expanded by the inner bash
+setsid bash -c 'seq "$1" "$2" | xargs -P "$3" -I{} "$4" "$5" {} ; touch "$6"' \
+       _ "$first" "$last" "$throttle" "$here/mock-slurm-task" "$jobid" "$dir/$jobid.done" >/dev/null 2>&1 &
+disown
+if (( parsable )) ; then echo "$jobid" ; else echo "Submitted batch job $jobid" ; fi

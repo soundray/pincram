@@ -1,0 +1,7 @@
+#!/bin/bash
+# Mock sacct: supports -j JOBID -n -P -X -o JobID,State; prints finished tasks only
+dir=${MOCK_SLURM_DIR:?} ; jobid=
+while [[ $# -gt 0 ]] ; do [[ $1 == -j ]] && { jobid=$2 ; shift ; } ; shift ; done
+[[ -e $dir/$jobid.args ]] || exit 0
+"$(dirname "$(realpath "${BASH_SOURCE[0]}")")"/mock-slurm-state "$jobid" |
+    while read -r t s ; do [[ $s == PENDING || $s == RUNNING ]] || echo "${jobid}_$t|$s" ; done

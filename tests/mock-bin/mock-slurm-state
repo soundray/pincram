@@ -1,0 +1,15 @@
+#!/bin/bash
+# Prints "TASK STATE" for every task of mock job JOBID, mapping exit codes like Slurm does
+dir=${MOCK_SLURM_DIR:?} ; jobid=$1
+read -r first last <"$dir/$jobid.range"
+for ((t=first; t<=last; t++)) ; do
+    if [[ -e $dir/$jobid.task$t ]] ; then
+        rc=$(<"$dir/$jobid.task$t")
+        case $rc in
+            0) s=COMPLETED ;; 137) s=OUT_OF_MEMORY ;; 124) s=TIMEOUT ;; CANCELLED) s="CANCELLED by 1000" ;; *) s=FAILED ;;
+        esac
+    elif [[ -e $dir/$jobid.task$t.start ]] ; then s=RUNNING
+    elif [[ -e $dir/$jobid.cancel ]] ; then s="CANCELLED by 1000"
+    else s=PENDING ; fi
+    echo "$t $s"
+done

@@ -1,0 +1,6 @@
+#!/bin/bash
+# Mock squeue: supports -j JOBID -h -r -o %T. Finished tasks keep showing their final state.
+dir=${MOCK_SLURM_DIR:?} ; jobid=
+while [[ $# -gt 0 ]] ; do [[ $1 == -j ]] && { jobid=$2 ; shift ; } ; shift ; done
+[[ -e $dir/$jobid.args ]] || { echo "slurm_load_jobs error: Invalid job id specified" >&2 ; exit 1 ; }
+"$(dirname "$(realpath "${BASH_SOURCE[0]}")")"/mock-slurm-state "$jobid" | cut -d ' ' -f 2-

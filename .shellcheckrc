@@ -1,0 +1,4 @@
+# Project-wide ShellCheck settings. Run: tests/run-tests.sh (or shellcheck -x <script>)
+shell=bash
+external-sources=true
+source-path=SCRIPTDIR

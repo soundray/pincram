@@ -1,0 +1,10 @@
+#!/bin/bash
+# Mock of NiftySeg's seg_maths: checks that every input image exists and creates the output
+# (last argument) as a placeholder file.
+set -e
+[[ $# -ge 2 ]] || { echo "mock seg_maths: too few arguments" >&2 ; exit 1 ; }
+out=${!#}
+for a in "${@:1:$#-1}" ; do
+    [[ $a == *.nii.gz && ! -e $a ]] && { echo "mock seg_maths: missing input $a" >&2 ; exit 1 ; }
+done
+printf 'mock seg_maths\n' >"$out"

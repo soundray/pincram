@@ -1,0 +1,78 @@
+#!/bin/bash
+#
+# Mock of the MIRTK front end for pincram's orchestration tests. It creates output files with
+# the names the real commands would create (contents are placeholders) and prints tables in the
+# formats the driver parses. Failure injection: see tests/README.md.
+
+set -e
+cmd=$1 ; shift
+
+mkout () { mkdir -p "$(dirname "$1")" ; printf 'mock mirtk %s\n' "$cmd" >"$1" ; }
+need () { [[ -e $1 ]] || { echo "mock mirtk $cmd: missing input $1" >&2 ; exit 1 ; } ; }
+
+# Atlas index, from reg.sh's temporary directory name (tmp/<tag>-s<idx>.XXXXXX)
+idx=$(basename "$PWD" | sed -n 's/^.*-s\([0-9]*\)\.[^.]*$/\1/p')
+
+# Failure injection for "register": a file $MOCK_FAIL_DIR/s<idx>-<mode> selects the behaviour
+inject () {
+    [[ -n $MOCK_FAIL_DIR && -n $idx ]] || return 0
+    local f
+    for f in "$MOCK_FAIL_DIR"/s"$idx"-* ; do
+        [[ -e $f ]] || continue
+        case ${f##*/s"$idx"-} in
+            once)         rm -f "$f" ; echo "mock: injected failure for atlas $idx" >&2 ; exit 1 ;;
+            always)       echo "mock: injected permanent failure for atlas $idx" >&2 ; exit 1 ;;
+            kill-once)    rm -f "$f" ; kill -9 $$ ;;
+            timeout-once) rm -f "$f" ; echo "mock: injected timeout for atlas $idx" >&2 ; exit 124 ;;
+        esac
+    done
+}
+
+[[ -n $MOCK_SLEEP ]] && sleep "$MOCK_SLEEP"
+
+case $cmd in
+    info)
+        need "$1"
+        echo "Information from BaseImage::Print"
+        echo "  Origin:  [   1.50000 ,    2.50000 ,    3.50000 ,    0.00000]"
+        ;;
+    register)
+        need "$1" ; need "$2"
+        inject
+        while [[ $# -gt 0 ]] ; do [[ $1 == -dofout ]] && mkout "$2" ; shift ; done
+        ;;
+    compose-dofs)
+        need "$1" ; need "$2" ; mkout "$3"
+        ;;
+    edit-image|convert-image|transform-image|calculate-distance-map)
+        need "$1" ; mkout "$2"
+        ;;
+    calculate-element-wise)
+        need "$1"
+        while [[ $# -gt 0 ]] ; do [[ $1 == -o ]] && mkout "$2" ; shift ; done
+        ;;
+    evaluate-label-overlap)
+        need "$1" ; need "$2"
+        echo "label,tp,fn,fp,tn,fpr,tpr,tnr,dsc,jsc"
+        echo "1,1000,50,50,10000,0.005,0.95,0.995,0.95,0.90"
+        ;;
+    evaluate-similarity)
+        tgt=$1 ; shift ; need "$tgt"
+        srcs=() ; noid=0
+        while [[ $# -gt 0 && $1 != -* ]] ; do need "$1" ; srcs+=("$1") ; shift ; done
+        while [[ $# -gt 0 ]] ; do [[ $1 == -noid ]] && noid=1 ; shift ; done
+        if (( noid )) ; then
+            echo NMI ; echo 1.0742530
+        else
+            # Deterministic, distinct values per atlas index
+            for s in "${srcs[@]}" ; do
+                b=$(basename "$s" .nii.gz)
+                i=$(sed -n 's/.*-s\([0-9]*\)$/\1/p' <<<"$b") ; : "${i:=50}"
+                awk -v t="$(basename "$tgt" .nii.gz)" -v b="$b" -v i="$i" \
+                    'BEGIN { printf "%s,%s,%.7f\n", t, b, 1.01 + ((i*7919) % 1000)/10000.0 }'
+            done
+        fi
+        ;;
+    *)
+        echo "mock mirtk: unhandled command $cmd" >&2 ; exit 2 ;;
+esac

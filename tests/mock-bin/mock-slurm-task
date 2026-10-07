@@ -1,0 +1,9 @@
+#!/bin/bash
+# Runs one array task for the mock sbatch: JOBID TASK
+dir=${MOCK_SLURM_DIR:?} ; jobid=$1 ; task=$2
+wrap=$(<"$dir/$jobid.wrap") ; chdir=$(<"$dir/$jobid.chdir") ; output=$(<"$dir/$jobid.output")
+if [[ -e $dir/$jobid.cancel ]] ; then echo CANCELLED >"$dir/$jobid.task$task" ; exit 0 ; fi
+touch "$dir/$jobid.task$task.start"
+out=${output//%a/$task}
+cd "$chdir" && SLURM_ARRAY_JOB_ID=$jobid SLURM_ARRAY_TASK_ID=$task SLURM_JOB_ID=${jobid}_$task bash -c "$wrap" >"$out" 2>&1
+echo $? >"$dir/$jobid.task$task"

@@ -1,0 +1,4 @@
+#!/bin/bash
+# Mock scancel JOBID: tasks not yet started are recorded as cancelled
+dir=${MOCK_SLURM_DIR:?}
+touch "$dir/$1.cancel"
