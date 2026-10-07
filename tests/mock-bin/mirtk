@@ -38,6 +38,7 @@ case $cmd in
         ;;
     register)
         need "$1" ; need "$2"
+        echo "mock register target=$1 source=$2"
         inject
         while [[ $# -gt 0 ]] ; do [[ $1 == -dofout ]] && mkout "$2" ; shift ; done
         ;;

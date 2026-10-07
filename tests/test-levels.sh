@@ -20,6 +20,10 @@ for levels in 1 2 3 ; do
         fi
     done
     last=${names[$((levels-1))]}
+    # the atlas image is cropped to its mask margin at the nonrigid level only (reg.sh src_crop_margin_mm)
+    assert_eq "no cropped sources at coarse" 0 "$(cat "$w"/logs/reg-coarse-s*.log | grep -c 'source=.*src-cropped')"
+    (( levels > 1 )) && assert_eq "no cropped sources at affine" 0 "$(cat "$w"/logs/reg-affine-s*.log | grep -c 'source=.*src-cropped')"
+    (( levels > 2 )) && assert_eq "all sources cropped at nonrigid" "$(grep -c '' "$w/job-nonrigid-a1.conf")" "$(cat "$w"/logs/reg-nonrigid-s*.log | grep -c 'source=.*src-cropped')"
     assert "no margin mask after the final level" test ! -e "$w/dmargin-$last.nii.gz"
     assert_eq "final level requested alt masks" "$(grep -c '' "$w/job-$last-a1.conf")" "$(grep -c -- '-alttr' "$w/job-$last-a1.conf")"
     assert_eq "level 0 has no -tdm" 0 "$(grep -c -- '-tdm' "$w/job-coarse-a1.conf")"
