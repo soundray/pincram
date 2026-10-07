@@ -87,7 +87,7 @@ min_atlases=7            # fewest atlases a level may be fused from, and the sma
 final_selection=8        # the per-level selection fraction is chosen so that about this many atlases
                          # remain after three rounds: fraction = (final_selection / atlasn)^(1/3)
 selection_floor_below=9  # selections smaller than this are set to min_atlases
-otsu_smoothing_mm=6      # smoothing before Otsu thresholding in the reference-space pre-alignment
+otsu_smoothing_vox=6     # Gaussian standard deviation (voxels) before Otsu thresholding in the reference-space pre-alignment
 
 # rank_margin_mm LEVEL : distance from the fused boundary within which atlases are ranked by
 # similarity; (5-level)^2/3 gives 8.3, 5.3, 3.0 mm at the coarse, affine and nonrigid level
@@ -233,7 +233,7 @@ origin () {
 
 # odistmap IMG OUT : negated distance map of the Otsu-thresholded, smoothed image
 odistmap () {
-    seg_maths "$1" -smo "$otsu_smoothing_mm" -otsu im-otsu.nii.gz
+    seg_maths "$1" -smo "$otsu_smoothing_vox" -otsu im-otsu.nii.gz
     mirtk calculate-distance-map im-otsu.nii.gz odm.nii.gz -threads "$drvthreads"
     mirtk calculate-element-wise odm.nii.gz -mul -1 -threads "$drvthreads" -o "$2"
 }
