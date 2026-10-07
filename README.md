@@ -76,7 +76,7 @@ After a batch has finished, every registration that produced no mask is classifi
 * Slurm state `TIMEOUT`: retried with doubled time limit
 * any other failure, or no status at all (process killed): retried with the same resources
 
-Tasks that are still queued or running are never resubmitted; the driver waits for them. If `PINCRAM_PROCEED_PCT` is below 100, a level proceeds as soon as that percentage of masks exists and no task is running any more; queued tasks are then cancelled. Atlases that fail `PINCRAM_MAX_ATTEMPTS` times are dropped from the level with a pointer to their log. Driver failure cancels outstanding job arrays.
+Tasks that are still queued or running are never resubmitted; the driver waits for them. Atlases that fail `PINCRAM_MAX_ATTEMPTS` times are dropped from the level with a pointer to their log. A level then proceeds if at least `PINCRAM_PROCEED_PCT` percent of its registrations succeeded. Driver failure cancels outstanding job arrays.
 
 ## Working directory
 

@@ -3,7 +3,7 @@
 #
 # scheduler -- concurrency control for pincram's registration batches
 #
-# Sourced by pincram.sh, which provides: td cdir pn arch par threads nselected minready minpct
+# Sourced by pincram.sh, which provides: td cdir pn arch par threads nselected
 # and the helpers from "functions". Levels are referred to by name (coarse, affine, nonrigid);
 # the level index is only used to pick per-level Slurm resources.
 #
@@ -126,8 +126,7 @@ batch_slurm () {
 }
 
 # slurm_wait JOBID NAME : poll squeue until no task of the array is queued or running.
-# Tasks that are merely queued are left alone, except that once PINCRAM_PROCEED_PCT of the
-# masks are ready and nothing is running any more, the remaining queued tasks are cancelled.
+# Tasks that are merely queued are left alone.
 slurm_wait () {
     local jobid=$1 name=$2 states active running pending ready failures=0 last=0 now
     while : ; do
@@ -148,11 +147,6 @@ slurm_wait () {
         if (( now - last >= 60 )) ; then
             msg "Job $jobid: $ready/$nselected masks ready, $running task(s) running, $pending queued"
             last=$now
-        fi
-        if (( minpct < 100 && ready >= minready && running == 0 && pending > 0 )) ; then
-            msg "Minimum of $minready masks reached; cancelling $pending task(s) still queued"
-            scancel "$jobid" || true
-            return 0
         fi
         sleep "$PINCRAM_POLL_SEC"
     done

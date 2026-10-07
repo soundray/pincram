@@ -35,7 +35,7 @@ already record:
 
 5. **Scheduler overhead.** Compare `Start - Submit` from `sacct` with task `elapsed`. If queue wait or array start-up dominates (short tasks at level 0 on a busy cluster), bundling several registrations per task would help; the per-line job file makes that a small change in `reg.sh` and `batch_slurm`.
 
-6. **Partial proceed.** `PINCRAM_PROCEED_PCT` of 100 versus 90 or 80: wall time saved on the straggler tail against the change in overlap with the reference. Only meaningful under Slurm with contention, where queued tasks can be cancelled.
+6. **Failure tolerance.** `PINCRAM_PROCEED_PCT` of 100 versus 90 or 80 with `PINCRAM_MAX_ATTEMPTS` of 1: how much accuracy is lost when a share of the registrations is allowed to be missing, which bounds the value of retries.
 
 Report wall time per level, mean and max task time, peak task memory, and the Jaccard overlaps for every configuration, from the same target and atlas.
 

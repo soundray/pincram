@@ -62,9 +62,8 @@ Environment:
 
 PINCRAM_ARCH          local (default) or slurm: how registrations are run. See README.md.
 PINCRAM_USE_LIB       mirtk (default) or greedy (experimental): registration library.
-PINCRAM_PROCEED_PCT   Percentage of the selected atlases that must be registered successfully for a level
-                      to proceed (default 100). Under Slurm, once this is reached and no task is running,
-                      tasks that are still queued are cancelled.
+PINCRAM_PROCEED_PCT   Percentage of the selected atlases that must be registered successfully (after
+                      retries) for a level to proceed (default 100).
 PINCRAM_MAX_ATTEMPTS  Attempts per registration before giving up on an atlas (default 3).
 PINCRAM_SLURM_MEM     Memory per registration task, one value per level (default "4G 4G 8G").
 PINCRAM_SLURM_TIME    Time limit per registration task in minutes, one value per level (default "30 30 120").
