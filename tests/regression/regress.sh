@@ -16,7 +16,8 @@
 # can be adopted as the baseline. Requires MIRTK and NiftySeg (or wrappers) on the PATH,
 # as pincram.sh itself does; the pincram directory is added to the PATH automatically.
 #
-# Baseline format (csv): level,metric,value    with metric in parenchyma_jaccard, icv_jaccard
+# Baseline format (csv): level,metric,value[,tolerance]   with metric in parenchyma_jaccard, icv_jaccard;
+# a row's tolerance overrides -tol. Lines starting with # are comments.
 
 set -e -o pipefail
 
@@ -109,15 +110,16 @@ fi
 status=0
 while IFS=, read -r level metric value _ ; do
     [[ $level == level ]] && continue
-    expected=$(awk -F , -v l="$level" -v m="$metric" '$1 == l && $2 == m { print $3 }' "$baseline")
+    read -r expected rowtol < <(awk -F , -v l="$level" -v m="$metric" '$1 == l && $2 == m { print $3, $4 }' "$baseline")
     if [[ -z $expected ]] ; then
         echo "  n/a   level $level $metric = $value (no baseline value)"
         continue
     fi
-    if awk -v a="$value" -v b="$expected" -v t="$tol" 'BEGIN { d = a - b ; if (d < 0) d = -d ; exit !(d <= t) }' ; then
-        echo "  ok    level $level $metric = $value (baseline $expected)"
+    t=${rowtol:-$tol}
+    if awk -v a="$value" -v b="$expected" -v t="$t" 'BEGIN { d = a - b ; if (d < 0) d = -d ; exit !(d <= t) }' ; then
+        echo "  ok    level $level $metric = $value (baseline $expected, tolerance $t)"
     else
-        echo "  FAIL  level $level $metric = $value (baseline $expected, tolerance $tol)"
+        echo "  FAIL  level $level $metric = $value (baseline $expected, tolerance $t)"
         status=1
     fi
 done <"$results"

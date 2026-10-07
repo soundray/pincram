@@ -1,8 +1,10 @@
-# Target m100 of ixi-pincram-atlas-n100-dm, left out of the atlas (99 atlases), MIRTK 2.0.0-unstable-2025-02-27, 2026-10-07
-level,metric,value
-1,parenchyma_jaccard,0.898804
-1,icv_jaccard,0.91998
-2,parenchyma_jaccard,0.926574
-2,icv_jaccard,0.924044
-3,parenchyma_jaccard,0.977382
-3,icv_jaccard,0.938179
+# Target m100 of ixi-pincram-atlas-n100-dm, left out of the atlas (99 atlases), MIRTK 2.0.0-unstable-2025-02-27,
+# pincram-image (numpy/scipy) for the voxel-wise steps, 2026-10-07. The ICV mask is a majority vote of 7 atlases
+# and moves by about 0.01 when the selection changes by one atlas, hence its wider tolerance.
+level,metric,value,tolerance
+1,parenchyma_jaccard,0.899676,0.01
+1,icv_jaccard,0.91918,0.02
+2,parenchyma_jaccard,0.925905,0.01
+2,icv_jaccard,0.920963,0.02
+3,parenchyma_jaccard,0.977321,0.01
+3,icv_jaccard,0.950147,0.02

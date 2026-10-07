@@ -41,7 +41,7 @@ the atlas index of the task it runs in:
 ## Regression tests (real data)
 
 `tests/regression/regress.sh` runs `pincram.sh` at each requested level on a target with
-reference masks and compares the Jaccard overlaps with a baseline csv (`level,metric,value`);
+reference masks and compares the Jaccard overlaps with a baseline csv (`level,metric,value[,tolerance]`);
 see the header of the script. Baselines live in `tests/regression/baselines/`.
 
 `tests/container-bin` holds wrappers that run `mirtk` (and, for the equivalence test, `seg_maths`) inside an Apptainer
