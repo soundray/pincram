@@ -17,7 +17,7 @@ pn=$(basename "$ppath")
 . "$cdir"/functions
 
 usage () {
-    msg "Usage: $pn -conf job.conf -tag TAG [-line N] [-threads T]" \
+    msg "Usage: $pn -conf job.conf -tag <level>-a<attempt> [-line N] [-threads T]" \
         "N defaults to \$SLURM_ARRAY_TASK_ID. Called by pincram.sh; not for interactive use."
 }
 
@@ -45,9 +45,10 @@ while [[ $# -gt 0 ]] ; do
     shift
 done
 [[ -s $conf ]] || fatal "Job file not given or empty"
-[[ -n $tag ]] || fatal "-tag not given"
+[[ $tag == *-a* ]] || fatal "-tag must be <level>-a<attempt>"
 [[ $line =~ ^[0-9]+$ ]] || fatal "Line number not given and SLURM_ARRAY_TASK_ID not set"
 [[ $threads =~ ^[1-9][0-9]*$ ]] || fatal "-threads must be a positive integer"
+levelname=${tag%-a*}
 
 rundir=$(dirname "$conf")
 mkdir -p "$rundir"/status "$rundir"/logs "$rundir"/tmp
@@ -93,7 +94,7 @@ start=$SECONDS
 
 finish () {
     local rc=$?
-    echo "rc=$rc elapsed=$((SECONDS-start)) tag=$tag atlas=$idx level=$lev" >"$statusfile"
+    echo "rc=$rc elapsed=$((SECONDS-start)) tag=$tag atlas=$idx level=$levelname" >"$statusfile"
     rm -rf "$td"
     exit "$rc"
 }
@@ -101,8 +102,8 @@ trap finish EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
 
-exec >>"$rundir/logs/reg-l$lev-s$idx.log" 2>&1
-echo "=== $(date) $tag atlas $idx level $lev threads $threads ($PINCRAM_USE_LIB) ==="
+exec >>"$rundir/logs/reg-$levelname-s$idx.log" 2>&1
+echo "=== $(date) $tag atlas $idx level $lev ($levelname) threads $threads ($PINCRAM_USE_LIB) ==="
 
 cd "$td" || fatal "Cannot cd to $td"
 set -e

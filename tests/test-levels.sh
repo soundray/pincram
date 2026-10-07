@@ -16,14 +16,14 @@ for levels in 1 2 3 ; do
             assert "level ${names[$l]} ran" test -s "$w/tmask-${names[$l]}-sel.nii.gz"
             assert "distance map for ${names[$l]}" test -s "$w/distmap-${names[$l]}.nii.gz"
         else
-            assert "level ${names[$l]} did not run" test ! -e "$w/job-l$l-a1.conf"
+            assert "level ${names[$l]} did not run" test ! -e "$w/job-${names[$l]}-a1.conf"
         fi
     done
     last=${names[$((levels-1))]}
     assert "no margin mask after the final level" test ! -e "$w/dmargin-$last.nii.gz"
-    assert_eq "final level requested alt masks" "$(grep -c '' "$w/job-l$((levels-1))-a1.conf")" "$(grep -c -- '-alttr' "$w/job-l$((levels-1))-a1.conf")"
-    assert_eq "level 0 has no -tdm" 0 "$(grep -c -- '-tdm' "$w/job-l0-a1.conf")"
-    (( levels > 1 )) && assert_eq "level 1 passes fused mask as -tdm" "$(grep -c '' "$w/job-l1-a1.conf")" "$(grep -c -- '-tdm .*/tmask-coarse-sum.nii.gz' "$w/job-l1-a1.conf")"
+    assert_eq "final level requested alt masks" "$(grep -c '' "$w/job-$last-a1.conf")" "$(grep -c -- '-alttr' "$w/job-$last-a1.conf")"
+    assert_eq "level 0 has no -tdm" 0 "$(grep -c -- '-tdm' "$w/job-coarse-a1.conf")"
+    (( levels > 1 )) && assert_eq "level 1 passes fused mask as -tdm" "$(grep -c '' "$w/job-affine-a1.conf")" "$(grep -c -- '-tdm .*/tmask-coarse-sum.nii.gz' "$w/job-affine-a1.conf")"
     assert "parenchyma mask written" test -s "$T/result/parenchyma.nii.gz"
     assert "icv mask written" test -s "$T/result/icv.nii.gz"
     assert "distance map saved (-savedm)" test -s "$T/result/prime-distmap.nii.gz"

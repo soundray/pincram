@@ -7,7 +7,7 @@
 # by similarity and narrows the selection for the next level. Intermediate files have defined
 # lifetimes; see README.md, "Working directory".
 
-set -e
+set -e -o pipefail
 
 ### Usage & parameter handling
 
@@ -310,7 +310,7 @@ fi
 
 ### Iterate over levels
 #
-# Job lines: one per atlas and level, in job-l<level>-a1.conf, consumed by reg.sh:
+# Job lines: one per atlas and level, in job-<level>-a1.conf, consumed by reg.sh:
 #   -idx N -lev L -tgt IMG -src IMG -msk IMG -spn DOF -tpn DOF -tmargin IMG
 #   -srctr OUT -masktr OUT -dofin DOF -dofout OUT [-tdm IMG] [-alt IMG -alttr OUT]
 # -tdm (fused mask of the previous level) exists from level 1 on; the alternative masks
@@ -330,7 +330,7 @@ for level in $(seq 0 "$maxlevel") ; do
     msg "Level $level ($thislevel)"
 
     ## Job lines for the atlases selected at the previous level
-    conf=$td/job-l$level-a1.conf
+    conf=$td/job-$thislevel-a1.conf
     : >"$conf"
     while read -r srcindex ; do
         IFS=, read -r _ src spn msk alt < <(sed -n "$((srcindex+1))p" "$atlas")
@@ -346,8 +346,8 @@ for level in $(seq 0 "$maxlevel") ; do
     ## Registrations, with retries
     minready=$(( nselected * minpct / 100 ))
     (( minready < min_atlases )) && minready=$min_atlases
-    run_registrations "$level"
-    thissize=$(count_ready "$level")
+    run_registrations "$level" "$thislevel"
+    thissize=$(count_ready "$thislevel")
     msg "Level $thislevel: $thissize of $nselected mask transformations completed (minimum $minready)"
     (( thissize >= minready )) || fatal "Too few registrations succeeded at level $thislevel"
 

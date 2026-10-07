@@ -18,7 +18,7 @@
 #
 # Baseline format (csv): level,metric,value    with metric in parenchyma_jaccard, icv_jaccard
 
-set -e
+set -e -o pipefail
 
 testsdir=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 pincramdir=$(dirname "$(dirname "$testsdir")")

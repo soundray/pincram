@@ -7,7 +7,7 @@ already record:
 
 ## What the scripts record
 
-* `status/l<level>-a<attempt>-n<line>` in the working directory: `rc=<exit> elapsed=<s> ... atlas=<i> level=<L>` for every task. Aggregate per level with
+* `status/<level>-a<attempt>-n<line>` in the working directory: `rc=<exit> elapsed=<s> ... atlas=<i> level=<name>` for every task. Aggregate per level with
 
   ```sh
   awk -F'[ =]' '{ e[$10] += $4 ; n[$10]++ ; if ($4 > m[$10]) m[$10] = $4 } END { for (l in n) printf "level %s: %d tasks, mean %.0f s, max %.0f s\n", l, n[l], e[l]/n[l], m[l] }' status/*

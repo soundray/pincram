@@ -70,7 +70,7 @@ sbatch -c 32 --mem 120G -t 3:00:00 --wrap "pincram.sh t1.nii.gz -result out -atl
 
 ### Retries
 
-After a batch has finished, every registration that produced no mask is classified from the status file that `reg.sh` writes on exit (`status/l<L>-a<A>-n<line>`) and, under Slurm, from `sacct`:
+After a batch has finished, every registration that produced no mask is classified from the status file that `reg.sh` writes on exit (`status/<level>-a<A>-n<line>`) and, under Slurm, from `sacct`:
 
 * exit code 137 or Slurm state `OUT_OF_MEMORY`: retried with doubled memory
 * Slurm state `TIMEOUT`: retried with doubled time limit
@@ -84,8 +84,8 @@ A uniquely named directory `pincram.XXXXXX` is created under `-workdir` (default
 
 | File | Created | Deleted |
 |---|---|---|
-| `job-l<L>-a<A>.conf` | before each batch (one job line per atlas) | with the working directory |
-| `logs/reg-l<L>-s<i>.log`, `status/…`, `logs/slurm-*.out` | by each task | with the working directory |
+| `job-<level>-a<A>.conf` | before each batch (one job line per atlas) | with the working directory |
+| `logs/reg-<level>-s<i>.log`, `status/<level>-a<A>-n<line>`, `logs/slurm-*.out` | by each task | with the working directory |
 | `tmp/<tag>-s<i>.XXXXXX/` | private scratch of one task | when the task exits |
 | `srctr-<level>-s<i>.nii.gz` (transformed atlas image) | by the task | after similarity ranking |
 | `masktr-<level>-s<i>.nii.gz`, `masktr-<level>-weighted-s<i>.nii.gz` | by the task / during fusion | after the level's fused label is built |
