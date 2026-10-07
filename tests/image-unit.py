@@ -170,6 +170,28 @@ class ImageOps(unittest.TestCase):
             dice = 2 * np.logical_and(got > 0, ref).sum() / (got.sum() + ref.sum())
             self.assertGreater(dice, 0.97, f"Dice against seg_maths {dice:.4f}")
 
+    def test_smooth_otsu_fill(self):
+        """-fill removes enclosed cavities and detached blobs; -fill R also closes narrow gaps."""
+        img = np.full(self.shape, 2000.0, dtype=np.float32)
+        img[:4] = 10.0                 # background slab
+        img[6:8, 6:8, 4:6] = 10.0      # an enclosed dark cavity
+        img[1, 1, 1] = 3000.0          # a detached bright voxel in the background
+        path = self.save(img, "fillimg.nii.gz")
+        run(TOOL, "smooth-otsu", self.out("nofill.nii.gz"), path, 0)
+        run(TOOL, "smooth-otsu", self.out("fill.nii.gz"), path, 0, "-fill")
+        nofill, fill = self.read(self.out("nofill.nii.gz")), self.read(self.out("fill.nii.gz"))
+        self.assertEqual(nofill[6:8, 6:8, 4:6].sum(), 0)          # cavity is open before
+        self.assertEqual(fill[6:8, 6:8, 4:6].sum(), 8)            # and filled after
+        self.assertEqual(nofill[1, 1, 1], 1)                      # blob present before
+        self.assertEqual(fill[1, 1, 1], 0)                        # removed after
+        self.assertEqual(fill[4:].sum(), fill.sum())              # nothing added in the background slab
+        img[6:8, 6:8, 0:6] = 10.0      # cavity opened to the surface: a narrow channel
+        path = self.save(img, "channel.nii.gz")
+        run(TOOL, "smooth-otsu", self.out("fill0.nii.gz"), path, 0, "-fill")
+        run(TOOL, "smooth-otsu", self.out("fill2.nii.gz"), path, 0, "-fill", 2)
+        self.assertEqual(self.read(self.out("fill0.nii.gz"))[6:8, 6:8, 4:6].sum(), 0)   # not enclosed: not filled
+        self.assertEqual(self.read(self.out("fill2.nii.gz"))[6:8, 6:8, 4:6].sum(), 8)   # closed by radius 2, then filled
+
     def test_singleton_fourth_dimension(self):
         """Atlas distance maps may be stored as 4D with one volume; they must combine with 3D images."""
         path4d = os.path.join(self.dir, "m4d.nii.gz")

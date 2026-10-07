@@ -9,7 +9,11 @@ Usage: pincram-image <operation> OUT ARGS...
   band OUT IN WIDTH                   1 where 0 < |IN| <= WIDTH, else 0
   binarize OUT IN                     1 where IN > 0, else 0
   crop OUT IMG MASK WIDTH             IMG where 0 < |MASK| <= WIDTH, else 0
-  smooth-otsu OUT IN SIGMA            Gaussian smoothing (SIGMA in voxels), then Otsu threshold: 1 above
+  smooth-otsu OUT IN SIGMA [-fill [RADIUS]]
+                                      Gaussian smoothing (SIGMA in voxels), then Otsu threshold: 1 above.
+                                      -fill keeps the largest connected component and fills enclosed
+                                      cavities, after a morphological closing with a ball of RADIUS
+                                      voxels (default 0: no closing)
   icv-vote OUT IN...                  1 where the mean of (2*IN - 1) over the inputs is > 0, else 0
   and OUT A B                         A*B
   or OUT A B                          1 where A + B != 0, else 0
@@ -144,14 +148,40 @@ def otsu_threshold(data, bins=256):
     return edges[1:-1][int(np.argmax(variance))]
 
 
+def fill_mask(mask, radius):
+    """Largest connected component with enclosed cavities filled, after closing with a ball of RADIUS voxels."""
+    from scipy import ndimage
+    if radius > 0:
+        r = int(round(radius))
+        zyx = np.ogrid[-r:r + 1, -r:r + 1, -r:r + 1]
+        ball = (zyx[0] ** 2 + zyx[1] ** 2 + zyx[2] ** 2) <= r * r
+        mask = ndimage.binary_closing(np.pad(mask, r), structure=ball)[r:-r, r:-r, r:-r]
+    labels, count = ndimage.label(mask)
+    if count > 1:
+        sizes = ndimage.sum(mask, labels, range(1, count + 1))
+        mask = labels == (int(np.argmax(sizes)) + 1)
+    return ndimage.binary_fill_holes(mask)
+
+
 def op_smooth_otsu(out, args):
-    if len(args) != 2:
-        die("smooth-otsu needs IN SIGMA")
+    fill = False
+    radius = 0.0
+    if len(args) >= 3 and args[2] == "-fill":
+        fill = True
+        if len(args) == 4:
+            radius = number(args[3], "radius")
+        elif len(args) != 3:
+            die("smooth-otsu needs IN SIGMA [-fill [RADIUS]]")
+    elif len(args) != 2:
+        die("smooth-otsu needs IN SIGMA [-fill [RADIUS]]")
     from scipy.ndimage import gaussian_filter  # imported here: only this operation needs scipy
     img, data = load(args[0])
     sigma = number(args[1], "sigma")
     smoothed = gaussian_filter(data, sigma=sigma) if sigma > 0 else data
-    save(out, smoothed > otsu_threshold(smoothed), img)
+    mask = smoothed > otsu_threshold(smoothed)
+    if fill:
+        mask = fill_mask(mask, radius)
+    save(out, mask, img)
 
 
 def op_icv_vote(out, inputs):

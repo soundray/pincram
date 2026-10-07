@@ -90,6 +90,7 @@ final_selection=8        # the per-level selection fraction is chosen so that ab
                          # remain after three rounds: fraction = (final_selection / atlasn)^(1/3)
 selection_floor_below=9  # selections smaller than this are set to min_atlases
 otsu_smoothing_vox=6     # Gaussian standard deviation (voxels) before Otsu thresholding in the reference-space pre-alignment
+otsu_fill=()             # (-fill [radius]) would fill cavities of the Otsu head mask; left empty, see docs/experiments.md
 
 # rank_margin_mm LEVEL : distance from the fused boundary within which atlases are ranked by
 # similarity; (5-level)^2/3 gives 8.3, 5.3, 3.0 mm at the coarse, affine and nonrigid level
@@ -226,7 +227,7 @@ origin () {
 
 # odistmap IMG OUT : negated distance map of the Otsu-thresholded, smoothed image
 odistmap () {
-    "$PINCRAM_IMAGE" smooth-otsu im-otsu.nii.gz "$1" "$otsu_smoothing_vox"
+    "$PINCRAM_IMAGE" smooth-otsu im-otsu.nii.gz "$1" "$otsu_smoothing_vox" "${otsu_fill[@]}"
     mirtk calculate-distance-map im-otsu.nii.gz odm.nii.gz -threads "$drvthreads"
     mirtk calculate-element-wise odm.nii.gz -mul -1 -threads "$drvthreads" -o "$2"
 }
