@@ -23,3 +23,10 @@ the volume ratio and the mean distance of the perturbed boundary to the original
 
 Requirements as for the regression test: MIRTK (or `tests/container-bin` with `PINCRAM_SIF`) and
 python3 with numpy, scipy and nibabel.
+
+## Results (2026-10-07)
+
+`results/results.csv`, `results/summary.md` and `results/precision-transfer.png` hold the outcome;
+the discussion is in `docs/experiments.md`. In short: closing up to 4 mm costs nothing measurable,
+8 mm costs 0.011 Jaccard, random boundary noise is damped about fourfold but not removed, and
+uniform 1 mm shifts transfer at 0.4 to 0.6.
