@@ -1,0 +1,211 @@
+#!/usr/bin/env python3
+"""pincram-image -- the voxel-wise image operations pincram needs, with numpy, scipy and nibabel
+
+Usage: pincram-image <operation> OUT ARGS...
+
+  mean OUT IN...                      voxel-wise mean of the inputs
+  weighted-sum OUT [-normalize] IN WEIGHT [IN WEIGHT...]
+                                      sum of WEIGHT*IN; -normalize divides by the sum of the weights
+  band OUT IN WIDTH                   1 where 0 < |IN| <= WIDTH, else 0
+  binarize OUT IN                     1 where IN > 0, else 0
+  crop OUT IMG MASK WIDTH             IMG where 0 < |MASK| <= WIDTH, else 0
+  smooth-otsu OUT IN SIGMA            Gaussian smoothing (SIGMA in voxels), then Otsu threshold: 1 above
+  icv-vote OUT IN...                  1 where the mean of (2*IN - 1) over the inputs is > 0, else 0
+  and OUT A B                         A*B
+  or OUT A B                          1 where A + B != 0, else 0
+
+Every output is written as float32 with the header of the first input image. The semantics
+follow the seg_maths (NiftySeg) chains pincram used before: "-thr 0 -bin" keeps values above 0,
+"-abs -uthr W -bin" keeps 0 < |x| <= W, and "-add 1 -mul 2 -sub 3" is 2x - 1.
+"""
+
+import sys
+
+
+def die(message):
+    sys.stderr.write("pincram-image: " + message + "\n")
+    sys.exit(1)
+
+
+try:
+    import numpy as np
+    import nibabel as nib
+except ImportError as exc:
+    if len(sys.argv) < 2 or sys.argv[1] not in ("-h", "--help", "help"):
+        die(f"needs the Python packages numpy, scipy and nibabel ({exc})")
+
+
+def load(path):
+    try:
+        img = nib.load(path)
+    except Exception as exc:  # noqa: BLE001 -- report any I/O or format problem the same way
+        die(f"cannot read {path}: {exc}")
+    data = np.asanyarray(img.dataobj).astype(np.float64)
+    while data.ndim > 3 and data.shape[-1] == 1:   # drop trailing singleton dimensions (4D headers with one volume)
+        data = data[..., 0]
+    return img, data
+
+
+def save(path, data, like):
+    header = like.header.copy()
+    header.set_data_dtype(np.float32)
+    header.set_slope_inter(1.0, 0.0)
+    nib.Nifti1Image(data.astype(np.float32), like.affine, header).to_filename(path)
+
+
+def number(text, what):
+    try:
+        return float(text)
+    except ValueError:
+        die(f"{what} must be a number, got '{text}'")
+
+
+def same_shape(ref, data, path):
+    if data.shape != ref.shape:
+        die(f"{path} has shape {data.shape}, expected {ref.shape}")
+
+
+def op_mean(out, inputs):
+    if not inputs:
+        die("mean needs at least one input")
+    first, acc = load(inputs[0])
+    for path in inputs[1:]:
+        _, data = load(path)
+        same_shape(acc, data, path)
+        acc += data
+    save(out, acc / len(inputs), first)
+
+
+def op_weighted_sum(out, args):
+    normalize = False
+    if args and args[0] == "-normalize":
+        normalize = True
+        args = args[1:]
+    if not args or len(args) % 2:
+        die("weighted-sum needs IN WEIGHT pairs")
+    first = acc = None
+    total = 0.0
+    for path, weight in zip(args[0::2], args[1::2]):
+        w = number(weight, "weight")
+        img, data = load(path)
+        if acc is None:
+            first, acc = img, data * w
+        else:
+            same_shape(acc, data, path)
+            acc += data * w
+        total += w
+    if normalize:
+        if total == 0:
+            die("weights sum to zero")
+        acc /= total
+    save(out, acc, first)
+
+
+def band_mask(data, width):
+    a = np.abs(data)
+    return (a > 0) & (a <= width)
+
+
+def op_band(out, args):
+    if len(args) != 2:
+        die("band needs IN WIDTH")
+    img, data = load(args[0])
+    save(out, band_mask(data, number(args[1], "width")), img)
+
+
+def op_binarize(out, args):
+    if len(args) != 1:
+        die("binarize needs IN")
+    img, data = load(args[0])
+    save(out, data > 0, img)
+
+
+def op_crop(out, args):
+    if len(args) != 3:
+        die("crop needs IMG MASK WIDTH")
+    img, data = load(args[0])
+    _, mask = load(args[1])
+    same_shape(data, mask, args[1])
+    save(out, np.where(band_mask(mask, number(args[2], "width")), data, 0.0), img)
+
+
+def otsu_threshold(data, bins=256):
+    """Threshold maximizing the between-class variance of a 256-bin histogram over all voxels."""
+    hist, edges = np.histogram(data, bins=bins)
+    hist = hist.astype(np.float64)
+    centers = (edges[:-1] + edges[1:]) / 2
+    weight1 = np.cumsum(hist)
+    weight2 = weight1[-1] - weight1
+    with np.errstate(invalid="ignore", divide="ignore"):
+        mean1 = np.cumsum(hist * centers) / weight1
+        mean2 = (np.cumsum((hist * centers)[::-1])[::-1] - hist * centers) / weight2
+        variance = weight1[:-1] * weight2[:-1] * (mean1[:-1] - mean2[1:]) ** 2
+    variance = np.nan_to_num(variance, nan=-1.0)
+    return edges[1:-1][int(np.argmax(variance))]
+
+
+def op_smooth_otsu(out, args):
+    if len(args) != 2:
+        die("smooth-otsu needs IN SIGMA")
+    from scipy.ndimage import gaussian_filter  # imported here: only this operation needs scipy
+    img, data = load(args[0])
+    sigma = number(args[1], "sigma")
+    smoothed = gaussian_filter(data, sigma=sigma) if sigma > 0 else data
+    save(out, smoothed > otsu_threshold(smoothed), img)
+
+
+def op_icv_vote(out, inputs):
+    if not inputs:
+        die("icv-vote needs at least one input")
+    first, acc = load(inputs[0])
+    acc = 2 * acc - 1
+    for path in inputs[1:]:
+        _, data = load(path)
+        same_shape(acc, data, path)
+        acc += 2 * data - 1
+    save(out, acc / len(inputs) > 0, first)
+
+
+def op_and(out, args):
+    if len(args) != 2:
+        die("and needs A B")
+    img, a = load(args[0])
+    _, b = load(args[1])
+    same_shape(a, b, args[1])
+    save(out, a * b, img)
+
+
+def op_or(out, args):
+    if len(args) != 2:
+        die("or needs A B")
+    img, a = load(args[0])
+    _, b = load(args[1])
+    same_shape(a, b, args[1])
+    save(out, (a + b) != 0, img)
+
+
+OPERATIONS = {
+    "mean": op_mean,
+    "weighted-sum": op_weighted_sum,
+    "band": op_band,
+    "binarize": op_binarize,
+    "crop": op_crop,
+    "smooth-otsu": op_smooth_otsu,
+    "icv-vote": op_icv_vote,
+    "and": op_and,
+    "or": op_or,
+}
+
+
+def main(argv):
+    if len(argv) < 3 or argv[1] in ("-h", "--help", "help"):
+        sys.stderr.write(__doc__)
+        sys.exit(0 if len(argv) >= 2 and argv[1] in ("-h", "--help", "help") else 1)
+    operation, out, args = argv[1], argv[2], argv[3:]
+    if operation not in OPERATIONS:
+        die(f"unknown operation '{operation}'; see pincram-image -h")
+    OPERATIONS[operation](out, args)
+
+
+if __name__ == "__main__":
+    main(sys.argv)
