@@ -7,10 +7,10 @@ already record:
 
 ## What the scripts record
 
-* `status/<level>-a<attempt>-n<line>` in the working directory: `rc=<exit> elapsed=<s> ... atlas=<i> level=<name>` for every task. Aggregate per level with
+* `status/<level>-a<attempt>-n<line>` in the working directory: `rc=<exit> elapsed=<s> peak_mb=<MB> ... atlas=<i> level=<name>` for every task. `peak_mb` is the task cgroup's `memory.peak` (cgroup v2), which Slurm provides per task and which survives container wrappers; it is empty where the cgroup is not readable. It includes page cache, so it is an upper bound on what the task needs. Under local execution all concurrent tasks share one cgroup, so the value is the peak of the whole job, not of the task; use a Slurm run to measure per-task memory. Aggregate per level with
 
   ```sh
-  awk -F'[ =]' '{ e[$10] += $4 ; n[$10]++ ; if ($4 > m[$10]) m[$10] = $4 } END { for (l in n) printf "level %s: %d tasks, mean %.0f s, max %.0f s\n", l, n[l], e[l]/n[l], m[l] }' status/*
+  awk -F'[ =]' '{ l=$12 ; e[l] += $4 ; n[l]++ ; if ($4 > t[l]) t[l] = $4 ; if ($6 > p[l]) p[l] = $6 } END { for (l in n) printf "%s: %d tasks, mean %.0f s, max %.0f s, peak %s MB\n", l, n[l], e[l]/n[l], t[l], p[l] }' status/*
   ```
 
 * Under Slurm, `sacct` has peak memory and queue wait per task:
@@ -46,4 +46,4 @@ Report wall time per level, mean and max task time, peak task memory, and the Ja
 | local, `-par 32 -threads 1`, 32-CPU node | 9-12 s per task | 9-12 s | 272 s mean, 371 s max | levels 1: 260 s; 2: 282 s; 3: 657 s | 0.899/0.920; 0.927/0.924; 0.977/0.938 |
 | slurm, 1 CPU per task, no throttle (30 atlases) | 14 s mean, 17 s max | | | levels 1: ~4 min incl. queueing | 0.887/0.922 (20 atlases), 0.975 parenchyma (30 atlases, 3 levels) |
 
-Level-0 tasks succeed with 600 MB but not with 300 MB (`PINCRAM_SLURM_MEM=150M` retried through 300M to 600M); the 4G default leaves ample room. The nonrigid level dominates the run time, so `-threads 2` or more for level 2 only is the first thing worth measuring next. Local and Slurm execution of the same configuration gave identical overlaps.
+Slurm task cgroups report a peak of about 850 MB for coarse-level tasks (page cache included); level-0 tasks succeed with 600 MB but not with 300 MB (`PINCRAM_SLURM_MEM=150M` retried through 300M to 600M); the 4G default leaves ample room. The nonrigid level dominates the run time, so `-threads 2` or more for level 2 only is the first thing worth measuring next. Local and Slurm execution of the same configuration gave identical overlaps.

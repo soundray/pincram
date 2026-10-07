@@ -7,8 +7,9 @@
 #
 # All output images are written to a private temporary directory and moved into place only
 # when complete; the mask (-masktr) is moved last, so its existence marks a finished
-# registration. On exit, a status file status/<tag>-n<line> records the exit code for
-# the scheduler's retry logic.
+# registration. On exit, a status file status/<tag>-n<line> records the exit code, the
+# elapsed time and, where the cgroup exposes it, the peak memory for the scheduler's retry
+# logic and for benchmarking.
 
 ppath=$(realpath "${BASH_SOURCE[0]}")
 cdir=$(dirname "$ppath")
@@ -92,9 +93,18 @@ done
 td=$(mktemp -d "$rundir/tmp/$tag-s$idx.XXXXXX") || fatal "Could not create temp dir in $rundir/tmp"
 start=$SECONDS
 
+# peak_mb : peak memory of this task's cgroup in MB (cgroup v2), empty if not readable
+peak_mb () {
+    local cg peak
+    cg=$(cut -d : -f 3 /proc/self/cgroup 2>/dev/null | head -n 1)
+    peak=$(cat "/sys/fs/cgroup$cg/memory.peak" 2>/dev/null) || return 0
+    [[ $peak =~ ^[0-9]+$ ]] && echo $(( peak / 1048576 ))
+    return 0
+}
+
 finish () {
     local rc=$?
-    echo "rc=$rc elapsed=$((SECONDS-start)) tag=$tag atlas=$idx level=$levelname" >"$statusfile"
+    echo "rc=$rc elapsed=$((SECONDS-start)) peak_mb=$(peak_mb) tag=$tag atlas=$idx level=$levelname" >"$statusfile"
     rm -rf "$td"
     exit "$rc"
 }

@@ -70,7 +70,7 @@ sbatch -c 32 --mem 120G -t 3:00:00 --wrap "pincram.sh t1.nii.gz -result out -atl
 
 ### Retries
 
-After a batch has finished, every registration that produced no mask is classified from the status file that `reg.sh` writes on exit (`status/<level>-a<A>-n<line>`) and, under Slurm, from `sacct`:
+After a batch has finished, every registration that produced no mask is classified from the status file that `reg.sh` writes on exit (`status/<level>-a<A>-n<line>`, which also records elapsed time and, where the cgroup exposes it, peak memory) and, under Slurm, from `sacct`:
 
 * exit code 137 or Slurm state `OUT_OF_MEMORY`: retried with doubled memory
 * Slurm state `TIMEOUT`: retried with doubled time limit

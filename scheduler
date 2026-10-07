@@ -10,7 +10,7 @@
 # One level's registrations are described by a job file with one line per atlas (see
 # pincram.sh, "Job lines"). run_registrations runs every line of the job file, waits for
 # the whole batch to finish, then classifies each registration from the status file that
-# reg.sh writes on exit (status/<tag>-n<line>, "rc=<exit code> ...") and, under Slurm, from
+# reg.sh writes on exit (status/<tag>-n<line>, "rc=<exit code> elapsed=<s> peak_mb=<MB> ...") and, under Slurm, from
 # the accounting state reported by sacct:
 #
 #   mask produced                      -> done
