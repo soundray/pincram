@@ -1,0 +1,7 @@
+#!/bin/bash
+# Runs the tool of the same name inside the Apptainer/Singularity image named by $PINCRAM_SIF.
+# Put this directory on the PATH to run pincram on a host that only has the tools in a container.
+# Bind mounts: $PINCRAM_SIF_BINDS (default: /nobackup if it exists). Tool location in the image: $PINCRAM_SIF_BINDIR (default /bin).
+sif=${PINCRAM_SIF:?set PINCRAM_SIF to the container image}
+binds=${PINCRAM_SIF_BINDS-$( [[ -d /nobackup ]] && echo /nobackup )}
+exec apptainer exec ${binds:+-B "$binds"} "$sif" "${PINCRAM_SIF_BINDIR:-/bin}/$(basename "$0")" "$@"

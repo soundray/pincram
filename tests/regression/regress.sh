@@ -1,0 +1,124 @@
+#!/bin/bash
+#
+# regress.sh -- regression test of pincram against real data
+#
+# Runs pincram at each requested processing level on a target image with known reference
+# masks, records the Jaccard overlap of the parenchyma and ICV outputs with the references
+# and the wall time per level, and compares the overlaps with a baseline file.
+#
+# Usage: tests/regression/regress.sh -target T1.nii.gz -atlas DIR|CSV -ref brainmask.nii.gz
+#            [-icvref icvmask.nii.gz] [-levels "1 2 3"] [-atlasn N] [-out DIR]
+#            [-baseline FILE] [-tol 0.01] [-- further pincram.sh options]
+#
+# If the target's base name matches an atlas entry, that entry is left out of the atlas
+# (leave-one-out), so an atlas image can serve as the test target. Without -baseline, or if
+# the baseline does not exist yet, the measured values are written to DIR/results.csv and
+# can be adopted as the baseline. Requires MIRTK and NiftySeg (or wrappers) on the PATH,
+# as pincram.sh itself does; the pincram directory is added to the PATH automatically.
+#
+# Baseline format (csv): level,metric,value    with metric in parenchyma_jaccard, icv_jaccard
+
+set -e
+
+testsdir=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+pincramdir=$(dirname "$(dirname "$testsdir")")
+export PATH=$pincramdir:$PATH
+
+usage () {
+    sed -n '3,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+}
+die () { echo "regress.sh: $*" >&2 ; exit 1 ; }
+
+target= ; atlas= ; ref= ; icvref= ; levels="1 2 3" ; atlasn= ; out=regression-out ; baseline= ; tol=0.01
+while [[ $# -gt 0 ]] ; do
+    case $1 in
+        -target)   target=$(realpath "$2") ; shift ;;
+        -atlas)    atlas=$(realpath "$2") ; shift ;;
+        -ref)      ref=$(realpath "$2") ; shift ;;
+        -icvref)   icvref=$(realpath "$2") ; shift ;;
+        -levels)   levels=$2 ; shift ;;
+        -atlasn)   atlasn=$2 ; shift ;;
+        -out)      out=$2 ; shift ;;
+        -baseline) baseline=$(realpath -m "$2") ; shift ;;
+        -tol)      tol=$2 ; shift ;;
+        --)        shift ; break ;;
+        -h|-help|--help) usage ; exit 0 ;;
+        *)         usage ; die "Unknown option $1" ;;
+    esac
+    shift
+done
+extra=("$@")
+[[ -n $target && -n $atlas && -n $ref ]] || { usage ; die "-target, -atlas and -ref are required" ; }
+[[ -e $target && -e $atlas && -e $ref ]] || die "Input not found"
+type mirtk >/dev/null 2>&1 || die "mirtk not on PATH"
+
+mkdir -p "$out" ; out=$(realpath "$out")
+results=$out/results.csv
+echo "level,metric,value,elapsed_s" >"$results"
+
+## Atlas csv, leaving the target out if it is an atlas entry
+name=$(basename "$target" .nii.gz)
+if [[ -d $atlas ]] ; then
+    "$pincramdir"/atlas-csv-gen.sh "$atlas" "$out/atlases-full.csv"
+else
+    cp "$atlas" "$out/atlases-full.csv"
+fi
+if grep -q "^$name," "$out/atlases-full.csv" ; then
+    grep -v "^$name," "$out/atlases-full.csv" >"$out/atlases.csv"
+    echo "regress.sh: leaving atlas entry $name out ($(( $(grep -c '' "$out/atlases.csv") - 1 )) atlases remain)"
+else
+    cp "$out/atlases-full.csv" "$out/atlases.csv"
+fi
+
+# jaccard REF IMG : Jaccard overlap of two binary masks (last column of the overlap table). IMG is
+# resampled onto REF's lattice and given its header first, as the overlap tool insists on identical lattices.
+jaccard () {
+    local tmp=$out/overlap-tmp.nii.gz
+    mirtk transform-image "$2" "$tmp" -target "$1" -interp NN >/dev/null 2>&1
+    mirtk edit-image "$tmp" "$tmp" -copy-size "$1" >/dev/null 2>&1
+    mirtk evaluate-label-overlap "$1" "$tmp" -precision 6 -table -noid 2>/dev/null | tail -n 1 | awk -F , '{ print $NF }'
+    rm -f "$tmp"
+}
+
+for level in $levels ; do
+    echo "=== level $level"
+    resdir=$out/level$level
+    rm -rf "$resdir"
+    opts=(-result "$resdir" -atlas "$out/atlases.csv" -levels "$level" -ref "$ref")
+    [[ -n $atlasn ]] && opts+=(-atlasn "$atlasn")
+    start=$(date +%s)
+    pincram.sh "$target" "${opts[@]}" "${extra[@]}" 2>&1 | tee "$out/level$level.log"
+    elapsed=$(( $(date +%s) - start ))
+    [[ -s $resdir/parenchyma.nii.gz ]] || die "pincram produced no parenchyma mask at level $level"
+    pj=$(jaccard "$ref" "$resdir/parenchyma.nii.gz")
+    echo "$level,parenchyma_jaccard,$pj,$elapsed" >>"$results"
+    if [[ -n $icvref ]] ; then
+        ij=$(jaccard "$icvref" "$resdir/icv.nii.gz")
+        echo "$level,icv_jaccard,$ij,$elapsed" >>"$results"
+    fi
+done
+
+echo "=== results ($results)"
+column -t -s , "$results" 2>/dev/null || cat "$results"
+
+## Comparison with baseline
+if [[ -z $baseline || ! -s $baseline ]] ; then
+    echo "regress.sh: no baseline to compare with; adopt $results as baseline if the values are acceptable"
+    exit 0
+fi
+status=0
+while IFS=, read -r level metric value _ ; do
+    [[ $level == level ]] && continue
+    expected=$(awk -F , -v l="$level" -v m="$metric" '$1 == l && $2 == m { print $3 }' "$baseline")
+    if [[ -z $expected ]] ; then
+        echo "  n/a   level $level $metric = $value (no baseline value)"
+        continue
+    fi
+    if awk -v a="$value" -v b="$expected" -v t="$tol" 'BEGIN { d = a - b ; if (d < 0) d = -d ; exit !(d <= t) }' ; then
+        echo "  ok    level $level $metric = $value (baseline $expected)"
+    else
+        echo "  FAIL  level $level $metric = $value (baseline $expected, tolerance $tol)"
+        status=1
+    fi
+done <"$results"
+exit $status

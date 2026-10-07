@@ -1,0 +1,8 @@
+# Target m100 of ixi-pincram-atlas-n100-dm, left out of the atlas (99 atlases), MIRTK 2.0.0-unstable-2025-02-27, 2026-10-07
+level,metric,value
+1,parenchyma_jaccard,0.898804
+1,icv_jaccard,0.91998
+2,parenchyma_jaccard,0.926574
+2,icv_jaccard,0.924044
+3,parenchyma_jaccard,0.977382
+3,icv_jaccard,0.938179
