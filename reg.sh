@@ -23,6 +23,7 @@ usage () {
 }
 
 : "${PINCRAM_USE_LIB:=mirtk}"
+: "${PINCRAM_IMAGE:=$cdir/pincram-image}"
 
 ### Tuned registration parameters (changing these changes the results)
 
@@ -125,7 +126,7 @@ fi
 
 ## At the nonrigid level, register the atlas image cropped to the margin of its mask
 if (( lev >= 2 )) ; then
-    seg_maths "$msk" -abs -uthr "$src_crop_margin_mm" -bin -mul "$src" src-cropped.nii.gz
+    "$PINCRAM_IMAGE" crop src-cropped.nii.gz "$src" "$msk" "$src_crop_margin_mm"
     src=$PWD/src-cropped.nii.gz
 fi
 

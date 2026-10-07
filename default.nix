@@ -5,9 +5,11 @@ let
 
   src = lib.cleanSource ./.;
 
+  python = pkgs.python3.withPackages (ps: [ ps.numpy ps.scipy ps.nibabel ]);
+
   binpath = lib.makeBinPath [
     pkgs.mirtk
-    pkgs.niftyseg
+    python
     pkgs.coreutils
     pkgs.findutils
     pkgs.gawk
@@ -19,7 +21,7 @@ in
 pkgs.runCommand "pincram" {} ''
   mkdir -p "$out/bin" "$out/lib/pincram"
 
-  cp ${src}/{pincram.sh,reg.sh,atlas-csv-gen.sh,atlas-gen.sh,scheduler,functions,neutral.dof.gz} \
+  cp ${src}/{pincram.sh,reg.sh,pincram-image,atlas-csv-gen.sh,atlas-gen.sh,scheduler,functions,neutral.dof.gz} \
     "$out/lib/pincram/"
 
   chmod u+w "$out/lib/pincram/functions"
@@ -30,7 +32,7 @@ export PATH="${binpath}:\$PATH"
 EOF2
 
   for f in \
-    pincram.sh reg.sh atlas-csv-gen.sh atlas-gen.sh
+    pincram.sh reg.sh pincram-image atlas-csv-gen.sh atlas-gen.sh
   do
     chmod +x "$out/lib/pincram/$f"
     patchShebangs "$out/lib/pincram/$f"
@@ -38,4 +40,5 @@ EOF2
 
   ln -s "$out/lib/pincram/pincram.sh" "$out/bin/pincram"
   ln -s "$out/lib/pincram/atlas-gen.sh" "$out/bin/pincram-atlas-gen"
+  ln -s "$out/lib/pincram/pincram-image" "$out/bin/pincram-image"
 ''

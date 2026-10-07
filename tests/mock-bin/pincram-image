@@ -1,0 +1,11 @@
+#!/bin/bash
+# Mock of pincram-image: checks that the input images exist and creates the output as a placeholder.
+# Usage mirrors the real tool: pincram-image OPERATION OUT ARGS...
+set -e
+[[ $1 == -h ]] && { echo "mock pincram-image help" ; exit 0 ; }
+[[ $# -ge 3 ]] || { echo "mock pincram-image: too few arguments" >&2 ; exit 1 ; }
+op=$1 ; out=$2 ; shift 2
+for a in "$@" ; do
+    [[ $a == *.nii.gz && ! -e $a ]] && { echo "mock pincram-image $op: missing input $a" >&2 ; exit 1 ; }
+done
+printf 'mock pincram-image %s\n' "$op" >"$out"

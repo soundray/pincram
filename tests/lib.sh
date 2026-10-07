@@ -2,7 +2,7 @@
 #
 # lib.sh -- helpers for pincram's test scripts (sourced)
 #
-# Each test script runs pincram.sh against tests/mock-bin (placeholder MIRTK, NiftySeg and
+# Each test script runs pincram.sh against tests/mock-bin (placeholder MIRTK, pincram-image and
 # Slurm commands) in a private temporary directory and ends with "report".
 
 testsdir=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
@@ -15,7 +15,7 @@ setup () {
     T=$(mktemp -d "$basetmp/pincram-test.XXXXXX")
     export TMPDIR=$T
     export PATH=$testsdir/mock-bin:$pincramdir:$PATH
-    export MOCK_FAIL_DIR=$T/fail MOCK_SLURM_DIR=$T/slurm
+    export MOCK_FAIL_DIR=$T/fail MOCK_SLURM_DIR=$T/slurm PINCRAM_IMAGE=$testsdir/mock-bin/pincram-image
     mkdir -p "$MOCK_FAIL_DIR" "$MOCK_SLURM_DIR"
     echo "placeholder target" >"$T/target.nii.gz"
     unset PINCRAM_ARCH PINCRAM_PROCEED_PCT PINCRAM_MAX_ATTEMPTS PINCRAM_SLURM_MEM PINCRAM_SLURM_TIME PINCRAM_SLURM_OPTS

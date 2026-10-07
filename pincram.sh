@@ -69,6 +69,8 @@ PINCRAM_SLURM_MEM     Memory per registration task, one value per level (default
 PINCRAM_SLURM_TIME    Time limit per registration task in minutes, one value per level (default "30 30 120").
 PINCRAM_SLURM_OPTS    Further sbatch options, e.g. "-A account -p partition".
 PINCRAM_DRIVER_THREADS Threads for the driver's own image processing steps (default: see README.md).
+PINCRAM_IMAGE         Path of the pincram-image tool (default: next to this script); set it to run it with a
+                      particular Python environment.
 
 EOF
 }
@@ -113,8 +115,9 @@ case $PINCRAM_USE_LIB in
     *)      fatal "PINCRAM_USE_LIB=$PINCRAM_USE_LIB is not supported (use mirtk or greedy)" ;;
 esac
 type mirtk     >/dev/null 2>&1 || fatal "Missing binary: mirtk (MIRTK) not on path"
-type seg_maths >/dev/null 2>&1 || fatal "Missing binary: seg_maths (NiftySeg) not on path"
-export PINCRAM_ARCH PINCRAM_USE_LIB
+: "${PINCRAM_IMAGE:=$cdir/pincram-image}"      # voxel-wise image operations (python3 with numpy, scipy, nibabel)
+"$PINCRAM_IMAGE" -h >/dev/null 2>&1 || fatal "$PINCRAM_IMAGE cannot run: python3 with numpy, scipy and nibabel is needed"
+export PINCRAM_ARCH PINCRAM_USE_LIB PINCRAM_IMAGE
 
 . "$cdir"/scheduler
 
@@ -201,16 +204,6 @@ finish () {
     exit "$rc"
 }
 
-# addargs IMG... : print a seg_maths argument list that sums the images (IMG1 -add IMG2 -add ...)
-addargs () {
-    local first=1 m
-    for m ; do
-        (( first )) || echo -add
-        echo "$m"
-        first=0
-    done
-}
-
 labelstats () {
     mirtk evaluate-label-overlap "$1" "$2" -precision 6 -table -noid | tail -n 1
 }
@@ -233,7 +226,7 @@ origin () {
 
 # odistmap IMG OUT : negated distance map of the Otsu-thresholded, smoothed image
 odistmap () {
-    seg_maths "$1" -smo "$otsu_smoothing_vox" -otsu im-otsu.nii.gz
+    "$PINCRAM_IMAGE" smooth-otsu im-otsu.nii.gz "$1" "$otsu_smoothing_vox"
     mirtk calculate-distance-map im-otsu.nii.gz odm.nii.gz -threads "$drvthreads"
     mirtk calculate-element-wise odm.nii.gz -mul -1 -threads "$drvthreads" -o "$2"
 }
@@ -352,17 +345,15 @@ for level in $(seq 0 "$maxlevel") ; do
 
     ## Reference for atlas selection, fused from all transformed masks
     msg "Building reference atlas for selection at level $thislevel"
-    masks=(masktr-"$thislevel"-s*.nii.gz)
-    mapfile -t args < <(addargs "${masks[@]}")
-    seg_maths "${args[@]}" -div "$thissize" tmask-"$thislevel"-sum.nii.gz
+    "$PINCRAM_IMAGE" mean tmask-"$thislevel"-sum.nii.gz masktr-"$thislevel"-s*.nii.gz
     tdm=$PWD/tmask-$thislevel-sum.nii.gz
 
     ## Intermediate target mask
-    seg_maths tmask-"$thislevel"-sum.nii.gz -thr 0 -bin tmask-"$thislevel".nii.gz
+    "$PINCRAM_IMAGE" binarize tmask-"$thislevel".nii.gz tmask-"$thislevel"-sum.nii.gz
     assess tmask-"$thislevel".nii.gz | tee -a assess.log
 
     ## Target margin mask for similarity ranking
-    seg_maths tmask-"$thislevel"-sum.nii.gz -abs -uthr "$(rank_margin_mm "$level")" -bin emargin-"$thislevel"-dil.nii.gz
+    "$PINCRAM_IMAGE" band emargin-"$thislevel"-dil.nii.gz tmask-"$thislevel"-sum.nii.gz "$(rank_margin_mm "$level")"
 
     ## Selection: rank atlases by NMI between their transformed image and the target within the margin
     msg "Selecting"
@@ -383,28 +374,24 @@ for level in $(seq 0 "$maxlevel") ; do
     tail -n +"$((nselected+1))" ranking-"$thislevel".csv >unselected-"$thislevel".csv
     msg "Selected $nselected at $thislevel"
 
-    ## Label from the selection, weighted by similarity
+    ## Label from the selection: masks weighted by similarity, normalized by the sum of weights
     : >weights-"$thislevel".csv
     weighted=()
     while IFS=, read -r s nmi ; do
         weight=$(awk -v m="$maxweight" -v n="$nmi" 'BEGIN { printf "%.10f", (n-1)/(m-1) }')
         echo "$s,$weight" >>weights-"$thislevel".csv
-        seg_maths masktr-"$thislevel"-s"$s".nii.gz -mul "$weight" masktr-"$thislevel"-weighted-s"$s".nii.gz
-        weighted+=(masktr-"$thislevel"-weighted-s"$s".nii.gz)
+        weighted+=(masktr-"$thislevel"-s"$s".nii.gz "$weight")
     done < <(head -n "$nselected" simm-"$thislevel".csv)
-    mapfile -t args < <(addargs "${weighted[@]}")
-    seg_maths "${args[@]}" tmask-"$thislevel"-sel-sum.nii.gz
-    seg_maths tmask-"$thislevel"-sel-sum.nii.gz -thr 0 -bin tmask-"$thislevel"-sel.nii.gz
+    "$PINCRAM_IMAGE" weighted-sum distmap-"$thislevel".nii.gz -normalize "${weighted[@]}"
+    "$PINCRAM_IMAGE" binarize tmask-"$thislevel"-sel.nii.gz distmap-"$thislevel".nii.gz
     assess tmask-"$thislevel"-sel.nii.gz | tee -a assess.log
-    rm -f masktr-"$thislevel"-s*.nii.gz masktr-"$thislevel"-weighted-s*.nii.gz   # masktr: no longer needed
+    rm -f masktr-"$thislevel"-s*.nii.gz                # masktr: no longer needed
     rm -f reg-s*-"$prevlevel".dof.gz                 # previous level's transformations: only needed as initialization
     prevlevel=$thislevel
 
-    ## Distance map of the selection; margin mask for the next level
-    scalefactor=$(head -n "$nselected" weights-"$thislevel".csv | awk -F , '{ s += $2 } END { printf "%.10f", s }')
-    seg_maths tmask-"$thislevel"-sel-sum.nii.gz -div "$scalefactor" distmap-"$thislevel".nii.gz
+    ## Margin mask for the next level
     (( level == maxlevel )) && continue
-    seg_maths distmap-"$thislevel".nii.gz -abs -uthr "$(reg_margin_mm "$level")" -bin dmargin-"$thislevel".nii.gz
+    "$PINCRAM_IMAGE" band dmargin-"$thislevel".nii.gz distmap-"$thislevel".nii.gz "$(reg_margin_mm "$level")"
     tmg=$PWD/dmargin-$thislevel.nii.gz
 done
 
@@ -412,25 +399,21 @@ done
 
 echo -n "SI:" ; labelstats tmask-"$thislevel".nii.gz tmask-"$thislevel"-sel.nii.gz | tee "$result"/si.csv
 
-### Alternative (ICV) mask from the final selection
+### Alternative (ICV) mask from the final selection: vote of the transformed alternative masks
 
-altc=0 ; addswitch=()
+alts=()
 while read -r s ; do
-    alts=alttr-s$s.nii.gz
-    [[ -s $alts ]] || continue
-    (( ++altc ))
-    seg_maths "$alts" -add 1 -mul 2 -sub 3 "${addswitch[@]}" altmsk-sum.nii.gz
-    addswitch=(-add altmsk-sum.nii.gz)
+    [[ -s alttr-s$s.nii.gz ]] && alts+=(alttr-s"$s".nii.gz)
 done <selection-"$thislevel".csv
-(( altc > 0 )) || fatal "No transformed alternative masks found"
+(( ${#alts[@]} > 0 )) || fatal "No transformed alternative masks found"
+"$PINCRAM_IMAGE" icv-vote altmsk-bin.nii.gz "${alts[@]}"
 rm -f alttr-s*.nii.gz                                # alttr: no longer needed
 [[ $savewd -eq 1 ]] || rm -f reg-s*-"$thislevel".dof.gz
 
 ### Combine mask types to create wide (ICV) and narrow (parenchymal) masks
 
-seg_maths altmsk-sum.nii.gz -div "$altc" -thr 0 -bin altmsk-bin.nii.gz
-seg_maths altmsk-bin.nii.gz -mul tmask-"$thislevel"-sel.nii.gz andmask.nii.gz
-seg_maths altmsk-bin.nii.gz -add tmask-"$thislevel"-sel.nii.gz -bin ormask.nii.gz
+"$PINCRAM_IMAGE" and andmask.nii.gz altmsk-bin.nii.gz tmask-"$thislevel"-sel.nii.gz
+"$PINCRAM_IMAGE" or ormask.nii.gz altmsk-bin.nii.gz tmask-"$thislevel"-sel.nii.gz
 mirtk convert-image andmask.nii.gz parenchyma1.nii.gz -uchar >>noisy.log 2>&1
 mirtk convert-image ormask.nii.gz icv1.nii.gz -uchar >>noisy.log 2>&1
 

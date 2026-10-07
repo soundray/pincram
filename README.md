@@ -22,12 +22,12 @@ The atlas-target registrations are embarrassingly parallel. Pincram runs them ei
 
 ## Dependencies
 
-* MIRTK (https://github.com/BioMedIA/MIRTK) -- always needed, also for the fusion steps
-* NiftySeg (https://github.com/KCL-BMEIS/NiftySeg) -- `seg_maths`
+* MIRTK (https://github.com/BioMedIA/MIRTK) -- registration, transformation, similarity and overlap evaluation
+* Python 3 with numpy, scipy and nibabel -- the voxel-wise image operations (`pincram-image`)
 * bash 4, GNU coreutils, findutils (`xargs`), awk, sed, grep
 * optional: greedy (https://github.com/pyushkevich/greedy) as experimental alternative registration library (`PINCRAM_USE_LIB=greedy`), Slurm (`PINCRAM_ARCH=slurm`), ShellCheck for the tests
 
-A reproducible build is available via Nix (`nix build`, see `default.nix`). If MIRTK and NiftySeg are only available in a container image, put `tests/container-bin` on the `PATH` and point `PINCRAM_SIF` at the image.
+A reproducible build is available via Nix (`nix build`, see `default.nix`). If MIRTK is only available in a container image, put `tests/container-bin` on the `PATH` and point `PINCRAM_SIF` at the image. `PINCRAM_IMAGE` can point `pincram-image` at a particular Python environment.
 
 ## Instructions
 
@@ -53,6 +53,7 @@ Each refinement level registers every selected atlas to the target. These regist
 | `PINCRAM_PROCEED_PCT` | % of selected atlases that must register successfully for a level to proceed | `100` |
 | `PINCRAM_DRIVER_THREADS` | threads for the driver's own MIRTK steps (fusion, ranking, distance maps) | local: `-par` x `-threads`, capped at the CPU count; Slurm: `SLURM_CPUS_ON_NODE` or `-threads` |
 | `PINCRAM_POLL_SEC` | interval for polling `squeue` | `20` |
+| `PINCRAM_IMAGE` | path of the `pincram-image` tool | next to `pincram.sh` |
 
 Typical invocations:
 
@@ -88,10 +89,12 @@ A uniquely named directory `pincram.XXXXXX` is created under `-workdir` (default
 | `logs/reg-<level>-s<i>.log`, `status/<level>-a<A>-n<line>`, `logs/slurm-*.out` | by each task | with the working directory |
 | `tmp/<tag>-s<i>.XXXXXX/` | private scratch of one task | when the task exits |
 | `srctr-<level>-s<i>.nii.gz` (transformed atlas image) | by the task | after similarity ranking |
-| `masktr-<level>-s<i>.nii.gz`, `masktr-<level>-weighted-s<i>.nii.gz` | by the task / during fusion | after the level's fused label is built |
+| `masktr-<level>-s<i>.nii.gz` | by the task | after the level's fused label is built |
 | `alttr-s<i>.nii.gz` (transformed alternative mask) | by the tasks of the final level only | after the ICV mask is summed |
 | `reg-s<i>-<level>.dof.gz` (transformation) | by the task | after the next level's registrations (they initialize them); final level: at the end unless `-savewd` |
 | `tmask-*`, `distmap-*`, `dmargin-*`, `emargin-*`, `simm-*`, `ranking-*`, `selection-*`, `weights-*` | per level | with the working directory |
+
+The voxel-wise operations (mean, weighted sum, margin bands, binarization, cropping, smoothing with Otsu threshold, the ICV vote) are in `pincram-image`; `tests/image-unit.py` checks each against a numpy reference and, when `seg_maths` is available, against the NiftySeg chains they replace.
 
 Tasks write all outputs in their private scratch directory and move them into place when complete, the mask last, so an existing `masktr` file always means a finished registration.
 
@@ -122,6 +125,7 @@ A target that is itself an atlas entry is left out of the atlas automatically. S
 * The IRTK registration branch (`PINCRAM_USE_LIB=irtk`) is removed; MIRTK is the reference implementation, greedy is experimental.
 * The tuned constants of the method are named at the top of `pincram.sh` and `reg.sh`.
 * `bc` and `rev` are no longer needed (replaced by awk and sed), which shortens the dependency list.
+* NiftySeg is no longer needed: `pincram-image` (Python with numpy, scipy, nibabel) replaces all `seg_maths` chains with the same semantics. Results differ slightly from the NiftySeg-based version because the Gaussian smoothing before the Otsu threshold of the pre-alignment handles the volume border differently; the regression baseline was re-recorded.
 * The atlas csv has five columns (name, image, normalization, prime mask, alternative mask); the usage text used to describe six.
 
 ## See also

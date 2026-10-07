@@ -29,7 +29,7 @@ already record:
 
 2. **Concurrency.** With `-threads` fixed, increase `-par` until wall time per level stops falling. Watch for memory pressure (exit code 137 in the status files, `OUT_OF_MEMORY` in `sacct`) and I/O saturation (elapsed grows although CPU per task does not). Under Slurm, `-par` is only a throttle; the useful comparison is unlimited versus a value that keeps the queue wait of the last tasks short.
 
-3. **Driver share (Amdahl).** Subtract the registration phases (max `elapsed` per attempt) from the level's wall time. What remains is the serial driver work: `evaluate-similarity` over all transformed images, the `seg_maths` sums, the distance map. `PINCRAM_DRIVER_THREADS` speeds up the MIRTK parts; the `seg_maths` loop over selected masks is serial per call and grows with `-atlasn`.
+3. **Driver share (Amdahl).** Subtract the registration phases (max `elapsed` per attempt) from the level's wall time. What remains is the serial driver work: `evaluate-similarity` over all transformed images, the `pincram-image` fusions, the distance map. `PINCRAM_DRIVER_THREADS` speeds up the MIRTK parts; the fusions read every transformed mask once and grow linearly with `-atlasn`.
 
 4. **Atlas count.** Time and accuracy for `-atlasn 20 40 60 100`. Level 0 cost grows linearly with the count; later levels grow with the cube-root selection rule, so the marginal cost of more atlases is mostly in level 0.
 
@@ -43,7 +43,8 @@ Report wall time per level, mean and max task time, peak task memory, and the Ja
 
 | Setting | Level 0 (99 tasks) | Level 1 (42 tasks) | Level 2 (18 tasks) | Wall time per run | Parenchyma / ICV Jaccard |
 |---|---|---|---|---|---|
-| local, `-par 32 -threads 1`, 32-CPU node | 9-12 s per task | 9-12 s | 272 s mean, 371 s max | levels 1: 260 s; 2: 282 s; 3: 657 s | 0.899/0.920; 0.927/0.924; 0.977/0.938 |
+| local, `-par 32 -threads 1`, 32-CPU node, seg_maths | 9-12 s per task | 9-12 s | 272 s mean, 371 s max | levels 1: 260 s; 2: 282 s; 3: 657 s | 0.899/0.920; 0.927/0.924; 0.977/0.938 |
+| same, pincram-image (MIRTK via container wrapper) | | | | levels 1: 190 s; 2: 231 s; 3: 586 s | 0.900/0.919; 0.926/0.921; 0.977/0.950 |
 | slurm, 1 CPU per task, no throttle (30 atlases) | 14 s mean, 17 s max | | | levels 1: ~4 min incl. queueing | 0.887/0.922 (20 atlases), 0.975 parenchyma (30 atlases, 3 levels) |
 
 Slurm task cgroups report a peak of about 850 MB for coarse-level tasks (page cache included); level-0 tasks succeed with 600 MB but not with 300 MB (`PINCRAM_SLURM_MEM=150M` retried through 300M to 600M); the 4G default leaves ample room. The nonrigid level dominates the run time, so `-threads 2` or more for level 2 only is the first thing worth measuring next. Local and Slurm execution of the same configuration gave identical overlaps.

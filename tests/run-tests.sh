@@ -4,7 +4,7 @@
 #
 # Usage: tests/run-tests.sh [test-name...]      (default: shellcheck and every tests/test-*.sh)
 #
-# The orchestration tests use placeholder MIRTK/NiftySeg/Slurm commands from tests/mock-bin, so
+# The orchestration tests use placeholder MIRTK/pincram-image/Slurm commands from tests/mock-bin, so
 # they run anywhere with bash, coreutils, awk and shellcheck. Regression tests against real data
 # are in tests/regression/.
 

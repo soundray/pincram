@@ -7,7 +7,7 @@
 
 The tests put `tests/mock-bin` first on the `PATH`. It holds placeholder versions of
 
-* `mirtk` and `seg_maths`: create output files with the expected names (contents are
+* `mirtk` and `pincram-image`: create output files with the expected names (contents are
   placeholders) and print tables in the formats the driver parses; `evaluate-similarity`
   returns deterministic, distinct NMI values per atlas index so selections are reproducible
 * `sbatch`, `squeue`, `sacct`, `scancel`: a miniature Slurm that runs the `--wrap` command of
@@ -36,6 +36,7 @@ the atlas index of the task it runs in:
 | `test-levels.sh` | `-levels 1`, `2`, `3` with `-ref` and `-savedm`: which levels run, job line contents, outputs |
 | `test-retry.sh` | transient failure, SIGKILL, permanent failure; `PINCRAM_PROCEED_PCT`; `PINCRAM_MAX_ATTEMPTS` |
 | `test-slurm.sh` | array sizing and throttling, `--cpus-per-task`, per-level memory and time, OOM and timeout escalation on retry |
+| `test-image.sh` | runs `image-unit.py`: every `pincram-image` operation against a numpy reference and, if `seg_maths` is on the PATH, against the NiftySeg chain it replaces; skipped without numpy, scipy and nibabel |
 
 ## Regression tests (real data)
 
@@ -43,5 +44,5 @@ the atlas index of the task it runs in:
 reference masks and compares the Jaccard overlaps with a baseline csv (`level,metric,value`);
 see the header of the script. Baselines live in `tests/regression/baselines/`.
 
-`tests/container-bin` holds wrappers that run `mirtk` and `seg_maths` inside an Apptainer
+`tests/container-bin` holds wrappers that run `mirtk` (and, for the equivalence test, `seg_maths`) inside an Apptainer
 image (`PINCRAM_SIF`), for hosts where the tools are only available in a container.
