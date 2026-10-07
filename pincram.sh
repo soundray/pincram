@@ -61,7 +61,7 @@ Usage: $pn <input> -result result-dir/ [-atlas atlas-dir/ | -atlas file.csv] [-a
 Environment:
 
 PINCRAM_ARCH          local (default) or slurm: how registrations are run. See README.md.
-PINCRAM_USE_LIB       mirtk (default), greedy or irtk: registration library.
+PINCRAM_USE_LIB       mirtk (default) or greedy (experimental): registration library.
 PINCRAM_PROCEED_PCT   Percentage of the selected atlases that must be registered successfully for a level
                       to proceed (default 100). Under Slurm, once this is reached and no task is running,
                       tasks that are still queued are cancelled.
@@ -82,6 +82,21 @@ pn=$(basename "$ppath")
 
 commandline="$pn $*"
 
+### Tuned parameters (Heckemann et al. 2015; changing these changes the results)
+
+min_atlases=7            # fewest atlases a level may be fused from, and the smallest selection
+final_selection=8        # the per-level selection fraction is chosen so that about this many atlases
+                         # remain after three rounds: fraction = (final_selection / atlasn)^(1/3)
+selection_floor_below=9  # selections smaller than this are set to min_atlases
+otsu_smoothing_mm=6      # smoothing before Otsu thresholding in the reference-space pre-alignment
+
+# rank_margin_mm LEVEL : distance from the fused boundary within which atlases are ranked by
+# similarity; (5-level)^2/3 gives 8.3, 5.3, 3.0 mm at the coarse, affine and nonrigid level
+rank_margin_mm () { awk -v l="$1" 'BEGIN { printf "%.8f", (l-5)^2/3 }' ; }
+# reg_margin_mm LEVEL : distance from the fused boundary that masks the next level's registrations;
+# (6-level)^2/5 gives 7.2 and 5.0 mm after the coarse and affine level
+reg_margin_mm ()  { awk -v l="$1" 'BEGIN { printf "%.8f", (l-6)^2/5 }' ; }
+
 : "${PINCRAM_ARCH:=local}"
 : "${PINCRAM_USE_LIB:=mirtk}"
 : "${PINCRAM_PROCEED_PCT:=100}"
@@ -94,10 +109,9 @@ case $PINCRAM_ARCH in
 esac
 
 case $PINCRAM_USE_LIB in
-    irtk)   type areg2  >/dev/null 2>&1 || fatal "Missing binary: areg2 (IRTK) not on path" ;;
     mirtk)  ;;
     greedy) type greedy >/dev/null 2>&1 || fatal "Missing binary: greedy not on path" ;;
-    *)      fatal "PINCRAM_USE_LIB=$PINCRAM_USE_LIB is not supported (use mirtk, greedy or irtk)" ;;
+    *)      fatal "PINCRAM_USE_LIB=$PINCRAM_USE_LIB is not supported (use mirtk or greedy)" ;;
 esac
 type mirtk     >/dev/null 2>&1 || fatal "Missing binary: mirtk (MIRTK) not on path"
 type seg_maths >/dev/null 2>&1 || fatal "Missing binary: seg_maths (NiftySeg) not on path"
@@ -220,7 +234,7 @@ origin () {
 
 # odistmap IMG OUT : negated distance map of the Otsu-thresholded, smoothed image
 odistmap () {
-    seg_maths "$1" -smo 6 -otsu im-otsu.nii.gz
+    seg_maths "$1" -smo "$otsu_smoothing_mm" -otsu im-otsu.nii.gz
     mirtk calculate-distance-map im-otsu.nii.gz odm.nii.gz -threads "$drvthreads"
     mirtk calculate-element-wise odm.nii.gz -mul -1 -threads "$drvthreads" -o "$2"
 }
@@ -264,7 +278,7 @@ fi
 
 atlasmax=$(( $(grep -c '' "$atlas") - 1 ))
 (( atlasn == 0 || atlasn > atlasmax )) && atlasn=$atlasmax
-(( atlasn >= 7 )) || fatal "At least 7 atlases are needed; $atlasn available"
+(( atlasn >= min_atlases )) || fatal "At least $min_atlases atlases are needed; $atlasn available"
 
 ### Target preparation
 
@@ -309,7 +323,7 @@ tmg=$tgt
 prevlevel=init
 seq 1 "$atlasn" >selection-$prevlevel.csv
 nselected=$atlasn
-usepercent=$(awk -v n="$nselected" 'BEGIN { printf "%.0f", 100*(8/n)^(1/3) }')
+usepercent=$(awk -v n="$nselected" -v f="$final_selection" 'BEGIN { printf "%.0f", 100*(f/n)^(1/3) }')
 
 for level in $(seq 0 "$maxlevel") ; do
     thislevel=${levelname[$level]}
@@ -331,7 +345,7 @@ for level in $(seq 0 "$maxlevel") ; do
 
     ## Registrations, with retries
     minready=$(( nselected * minpct / 100 ))
-    (( minready < 7 )) && minready=7
+    (( minready < min_atlases )) && minready=$min_atlases
     run_registrations "$level"
     thissize=$(count_ready "$level")
     msg "Level $thislevel: $thissize of $nselected mask transformations completed (minimum $minready)"
@@ -349,8 +363,7 @@ for level in $(seq 0 "$maxlevel") ; do
     assess tmask-"$thislevel".nii.gz | tee -a assess.log
 
     ## Target margin mask for similarity ranking
-    thresh1=$(awk -v l="$level" 'BEGIN { printf "%.8f", (l-5)^2/3 }')
-    seg_maths tmask-"$thislevel"-sum.nii.gz -abs -uthr "$thresh1" -bin emargin-"$thislevel"-dil.nii.gz
+    seg_maths tmask-"$thislevel"-sum.nii.gz -abs -uthr "$(rank_margin_mm "$level")" -bin emargin-"$thislevel"-dil.nii.gz
 
     ## Selection: rank atlases by NMI between their transformed image and the target within the margin
     msg "Selecting"
@@ -366,7 +379,7 @@ for level in $(seq 0 "$maxlevel") ; do
 
     maxweight=$(head -n 1 simm-"$thislevel".csv | cut -d , -f 2)
     nselected=$(( thissize * usepercent / 100 ))
-    (( nselected < 9 )) && nselected=7
+    (( nselected < selection_floor_below )) && nselected=$min_atlases
     head -n "$nselected" ranking-"$thislevel".csv >selection-"$thislevel".csv
     tail -n +"$((nselected+1))" ranking-"$thislevel".csv >unselected-"$thislevel".csv
     msg "Selected $nselected at $thislevel"
@@ -392,8 +405,7 @@ for level in $(seq 0 "$maxlevel") ; do
     scalefactor=$(head -n "$nselected" weights-"$thislevel".csv | awk -F , '{ s += $2 } END { printf "%.10f", s }')
     seg_maths tmask-"$thislevel"-sel-sum.nii.gz -div "$scalefactor" distmap-"$thislevel".nii.gz
     (( level == maxlevel )) && continue
-    thresh2=$(awk -v l="$level" 'BEGIN { printf "%.8f", (l-6)^2/5 }')
-    seg_maths distmap-"$thislevel".nii.gz -abs -uthr "$thresh2" -bin dmargin-"$thislevel".nii.gz
+    seg_maths distmap-"$thislevel".nii.gz -abs -uthr "$(reg_margin_mm "$level")" -bin dmargin-"$thislevel".nii.gz
     tmg=$PWD/dmargin-$thislevel.nii.gz
 done
 

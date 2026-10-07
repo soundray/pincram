@@ -23,6 +23,16 @@ usage () {
 
 : "${PINCRAM_USE_LIB:=mirtk}"
 
+### Tuned registration parameters (changing these changes the results)
+
+src_crop_margin_mm=7          # at the nonrigid level, the atlas image is cropped to this distance around its mask
+# MIRTK, per level: model, resolution levels, background value
+mirtk_coarse=(-model Rigid+Affine -levels 4 4 -bg 0)
+mirtk_affine=(-model Rigid+Affine -levels 3 3 -bg -1)
+mirtk_nonrigid=(-model SVFFD -par "Bending energy weight" 1e-4 -levels 1 1 -bg -1)
+
+### Parameters
+
 conf= ; line=${SLURM_ARRAY_TASK_ID:-} ; tag= ; threads=1
 while [[ $# -gt 0 ]] ; do
     case "$1" in
@@ -77,6 +87,7 @@ for v in idx lev tgt src srctr msk masktr dofout spn tpn ; do
 done
 
 ### Private working directory, log and status
+
 td=$(mktemp -d "$rundir/tmp/$tag-s$idx.XXXXXX") || fatal "Could not create temp dir in $rundir/tmp"
 start=$SECONDS
 
@@ -101,9 +112,9 @@ if [[ -s $masktr ]] ; then
     exit 0
 fi
 
-## From the second refinement level on, register the atlas image cropped to its mask margin
+## At the nonrigid level, register the atlas image cropped to the margin of its mask
 if (( lev >= 2 )) ; then
-    seg_maths "$msk" -abs -uthr 7 -bin -mul "$src" src-cropped.nii.gz
+    seg_maths "$msk" -abs -uthr "$src_crop_margin_mm" -bin -mul "$src" src-cropped.nii.gz
     src=$PWD/src-cropped.nii.gz
 fi
 
@@ -117,34 +128,13 @@ case "$PINCRAM_USE_LIB" in
         case $lev in
             0)
                 mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
-                mirtk register "$tgt" "$src" \
-                      -model Rigid+Affine \
-                      -dofout dof-out.dof \
-                      -dofin dof-pre.dof \
-                      -levels 4 4 \
-                      -bg 0 \
-                      -threads "$threads"
+                mirtk register "$tgt" "$src" "${mirtk_coarse[@]}" -dofin dof-pre.dof -dofout dof-out.dof -threads "$threads"
                 ;;
             1)
-                mirtk register "$tgt" "$src" \
-                      -model Rigid+Affine \
-                      -dofout dof-out.dof \
-                      -dofin "$dofin" \
-                      -mask "$tmargin" \
-                      -bg -1 \
-                      -levels 3 3 \
-                      -threads "$threads"
+                mirtk register "$tgt" "$src" "${mirtk_affine[@]}" -dofin "$dofin" -mask "$tmargin" -dofout dof-out.dof -threads "$threads"
                 ;;
             2)
-                mirtk register "$tgt" "$src" \
-                      -model SVFFD \
-                      -par "Bending energy weight" 1e-4 \
-                      -dofout dof-out.dof \
-                      -dofin "$dofin" \
-                      -mask "$tmargin" \
-                      -bg -1 \
-                      -levels 1 1 \
-                      -threads "$threads"
+                mirtk register "$tgt" "$src" "${mirtk_nonrigid[@]}" -dofin "$dofin" -mask "$tmargin" -dofout dof-out.dof -threads "$threads"
                 ;;
         esac
         mirtk transform-image "$msk" masktr.nii.gz -interp Linear -Sp -1 -dofin dof-out.dof -target "$tgt" -threads "$threads"
@@ -153,7 +143,7 @@ case "$PINCRAM_USE_LIB" in
         dofresult=dof-out.dof
         ;;
 
-    greedy)
+    greedy)   # experimental
         case $lev in
             0)
                 mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
@@ -205,139 +195,6 @@ case "$PINCRAM_USE_LIB" in
         reslice=(-rm "$msk" masktr.nii.gz -rm "$src" srctr.nii.gz)
         [[ -n $alttr ]] && reslice+=(-rm "$alt" alttr.nii.gz)
         greedy -d 3 -threads "$threads" -rf "$tgt" -ri LINEAR "${reslice[@]}" -r "$dofresult"
-        ;;
-
-    irtk)
-        case $lev in
-            0)
-                cat >lev0.reg <<'PAR'
-#
-# Registration parameters
-#
-
-No. of resolution levels          = 1
-No. of bins                       = 64
-Epsilon                           = 0.0001
-Padding value                     = -1
-Source padding value              = -1
-Similarity measure                = NMI
-Interpolation mode                = Linear
-
-#
-# Registration parameters for resolution level 1
-#
-
-Resolution level                  = 1
-Target blurring (in mm)           = 2
-Target resolution (in mm)         = 5 5 5
-Source blurring (in mm)           = 2
-Source resolution (in mm)         = 5 5 5
-No. of iterations                 = 40
-Minimum length of steps           = 0.01
-Maximum length of steps           = 2
-
-PAR
-                dofcombine "$spn" "$tpn" pre1.dof.gz -invert2
-                areg2 "$tgt" "$src" -dofin pre1.dof.gz -dofout pre2.dof.gz -parin lev0.reg
-                # Keep the pre-alignment if the registration did not improve on it
-                nmi2=$( evaluation "$tgt" "$src" -dofin pre1.dof.gz | grep NMI | cut -d : -f 2 )
-                nmi3=$( evaluation "$tgt" "$src" -dofin pre2.dof.gz | grep NMI | cut -d : -f 2 )
-                cp pre2.dof.gz dofout.dof.gz
-                if [[ $(awk -v a="$nmi3" -v b="$nmi2" 'BEGIN { print (a > b) }') -eq 0 ]] ; then
-                    cp pre1.dof.gz dofout.dof.gz
-                fi
-                ;;
-            1)
-                cat >lev1.reg <<'PAR'
-#
-# Registration parameters
-#
-
-No. of resolution levels          = 2
-No. of bins                       = 64
-Epsilon                           = 0.0001
-Padding value                     = 0
-Source padding value              = 0
-Similarity measure                = NMI
-Interpolation mode                = Linear
-
-#
-# Registration parameters for resolution level 1
-#
-
-Resolution level                  = 1
-Target blurring (in mm)           = 0
-Target resolution (in mm)         = 0 0 0
-Source blurring (in mm)           = 0
-Source resolution (in mm)         = 0 0 0
-No. of iterations                 = 40
-Minimum length of steps           = 0.01
-Maximum length of steps           = 1
-
-#
-# Registration parameters for resolution level 2
-#
-
-Resolution level                  = 2
-Target blurring (in mm)           = 1.5
-Target resolution (in mm)         = 3 3 3
-Source blurring (in mm)           = 1.5
-Source resolution (in mm)         = 3 3 3
-No. of iterations                 = 40
-Minimum length of steps           = 0.01
-Maximum length of steps           = 1
-
-PAR
-                areg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev1.reg -mask "$tmargin"
-                ;;
-            2)
-                cat >lev2.reg <<'PAR'
-#
-# Non-rigid registration parameters
-#
-
-Lambda1                           = 0.0001
-Lambda2                           = 1
-Lambda3                           = 1
-Control point spacing in X        = 6
-Control point spacing in Y        = 6
-Control point spacing in Z        = 6
-Subdivision                       = True
-MFFDMode                          = True
-
-#
-# Registration parameters
-#
-
-No. of resolution levels          = 1
-No. of bins                       = 128
-Epsilon                           = 0.0001
-Padding value                     = 0
-Source padding value              = 0
-Similarity measure                = NMI
-Interpolation mode                = Linear
-
-#
-# Skip resolution level 1
-#
-
-Resolution level                  = 1
-Target blurring (in mm)           = 0
-Target resolution (in mm)         = 0 0 0
-Source blurring (in mm)           = 0
-Source resolution (in mm)         = 0 0 0
-No. of iterations                 = 40
-Minimum length of steps           = 0.01
-Maximum length of steps           = 2
-
-PAR
-                nreg2 "$tgt" "$src" -dofin "$dofin" -dofout dofout.dof.gz -parin lev2.reg -mask "$tmargin"
-                ;;
-        esac
-        transformation "$msk" masktr.nii.gz -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"
-        transformation "$src" srctr.nii.gz -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"
-        [[ -n $alttr ]] && transformation "$alt" alttr.nii.gz -linear -Sp -1 -dofin dofout.dof.gz -target "$tgt"
-        dofresult=dofout.dof.gz
         ;;
 
     *)

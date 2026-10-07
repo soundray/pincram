@@ -25,7 +25,7 @@ The atlas-target registrations are embarrassingly parallel. Pincram runs them ei
 * MIRTK (https://github.com/BioMedIA/MIRTK) -- always needed, also for the fusion steps
 * NiftySeg (https://github.com/KCL-BMEIS/NiftySeg) -- `seg_maths`
 * bash 4, GNU coreutils, findutils (`xargs`), awk, sed, grep
-* optional: greedy (https://github.com/pyushkevich/greedy) or IRTK as alternative registration libraries (`PINCRAM_USE_LIB`), Slurm (`PINCRAM_ARCH=slurm`), ShellCheck for the tests
+* optional: greedy (https://github.com/pyushkevich/greedy) as experimental alternative registration library (`PINCRAM_USE_LIB=greedy`), Slurm (`PINCRAM_ARCH=slurm`), ShellCheck for the tests
 
 A reproducible build is available via Nix (`nix build`, see `default.nix`). If MIRTK and NiftySeg are only available in a container image, put `tests/container-bin` on the `PATH` and point `PINCRAM_SIF` at the image.
 
@@ -119,6 +119,8 @@ A target that is itself an atlas entry is left out of the atlas automatically. S
 * `-pickup` and the `tar` archives of intermediate masks are gone; runs are not resumable. Use `-savewd` to keep intermediates.
 * `distrib`, `spark` and the PBS/GE/`bash-single` modes (`PINCRAM_ARCH=pbs|ge|bash-single`, `PINCRAM_QUEUE`, `PINCRAM_CHUNKSIZE`, `PINCRAM_PBS_OPTION`) are replaced by `scheduler` with `PINCRAM_ARCH=local|slurm`. `bash` is accepted as an alias of `local`.
 * `-par` no longer doubles as the MIRTK thread count; use `-threads`.
+* The IRTK registration branch (`PINCRAM_USE_LIB=irtk`) is removed; MIRTK is the reference implementation, greedy is experimental.
+* The tuned constants of the method are named at the top of `pincram.sh` and `reg.sh`.
 * `bc` and `rev` are no longer needed (replaced by awk and sed), which shortens the dependency list.
 * The atlas csv has five columns (name, image, normalization, prime mask, alternative mask); the usage text used to describe six.
 
