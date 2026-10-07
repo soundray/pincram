@@ -1,4 +1,11 @@
 #!/bin/bash
+#
+# pincram.sh -- brain extraction using label propagation and group agreement
+#
+# Driver. Prepares the target, then for each refinement level registers the selected atlases
+# to the target in parallel (see "scheduler"), fuses the transformed masks, ranks the atlases
+# by similarity and narrows the selection for the next level. Intermediate files have defined
+# lifetimes; see README.md, "Working directory".
 
 set -e
 
@@ -7,59 +14,67 @@ set -e
 usage () {
     cat <<EOF
 
-Copyright (C) 2012-2018 Rolf A. Heckemann
+Copyright (C) 2012-2026 Rolf A. Heckemann
 Web site: http://www.soundray.org/pincram
 
-Usage: $0 <input> <options> <-result result-dir/> \\
-                       [-workdir working_directory/] [-savewd] [-savedm] [-pickup previous_dir/] \\
-                       [-atlas atlas_directory/ | -atlas file.csv] [-atlasn N ] [-levels {1..3}] \\
-                       [-par max_parallel_jobs] [-ref ref.nii.gz]
+Usage: $pn <input> -result result-dir/ [-atlas atlas-dir/ | -atlas file.csv] [-atlasn N] [-levels {1..3}]
+                        [-par N] [-threads T] [-workdir dir/] [-savewd] [-savedm] [-tpn norm.dof.gz] [-ref ref.nii.gz]
 
 <input>     : T1-weighted magnetic resonance image in gzipped NIfTI format.
 
--result     : Name of directory to receive output files. Will be created if it does not exist. Contents
-              will be overwritten if they exist.
+-result     : Directory to receive output files (parenchyma.nii.gz, icv.nii.gz, si.csv). Created if it
+              does not exist; existing contents are overwritten.
 
--workdir    : Base working directory. Default is present working directory. When running under PBS, this
-              location needs to be accessible from the cluster nodes. On each run, a uniquely named directory
-              for intermediate results is generated.
+-atlas      : Atlas directory, or csv file describing the atlas database. A directory must contain the
+              etc/entry-* files written by atlas-gen.sh (or a ready-made etc/atlases.csv). In a csv file,
+              the first row is the base directory for atlas files; each further row describes one atlas
+              with paths relative to the base directory. Column 1: atlas name (unique), Column 2: full
+              image, Column 3: transformation (.dof format) for positional normalization, Column 4: prime
+              mask, Column 5: alternative mask. Mask voxels should range from -1 (background) to 1
+              (foreground); discrete or probabilistic maps are both allowed. Prime masks are typically
+              parenchyma masks and alternative masks are intracranial volume masks, but this can be
+              swapped. The output distance map is calculated on the prime (Column 4) input.
 
--pickup     : Intermediate results directory from a previous run -- work will be continued. Overrides
-              -workdir setting if given. Implies -savewd. Previous run must be compatible (same -atlas,
-              same <input>, etc.), else results are unpredictable.
+-atlasn     : Use a maximum of N atlases. By default, all available are used. At least 7 are needed.
 
--savewd     : By default, the temporary directory under the working directory will be deleted
-              after processing. Set this flag to save intermediate files in the -result location.
+-levels     : Number of refinement levels, 1 to 3 (default 3): coarse, affine, nonrigid.
 
--savedm     : By default, the final distance map is discarded. Set this flag to save it to the result
-              directory instead
+-par        : Maximum number of registrations running at the same time. Local execution: default is the
+              number of available CPUs divided by -threads. Slurm: default is no limit (the value becomes
+              the job array throttle).
 
--atlas      : Atlas directory.
-              Has to contain images/m{1..n}.nii.gz, brainmasks/m{1..n}.nii.gz, affinenorm/m{1..n}.dof.gz,
-              and refspace/img.nii.gz (unless -tpn given).
-              Alternatively, -atlas can point to a csv spreadsheet: first row should be base directory for
-              atlas files. Entries should be relative to base directory. Each row refers to one atlas.
-              Column 1: atlasname, Column 2: full image, Column 3: margin mask, Column 4: transformation
-              (.dof format) for positional normalization, Column 5: prime mask, Column 6: alternative mask.
-              Atlasname should be unique across entries. Note: mask voxels should range from -1 (background)
-              to 1 (foreground); discrete or probabilistic maps are both allowed. Prime masks are typically
-              parenchyma masks and alternative masks are intracranial volume masks, but this can be swapped.
-              The output distance map is calculated on the prime (Column 5) input.
+-threads    : CPU threads per registration (default 1). Under Slurm this sets --cpus-per-task.
 
--tpn        : Transformation for positional normalization or normalization to a reference space
+-workdir    : Base directory in which a uniquely named working directory is created for the run. Default:
+              \$TMPDIR/\$USER for local execution; the current directory under Slurm (it must be visible
+              from the compute nodes).
 
--atlasn     : Use a maximum of N atlases.  By default, all available are used.
+-savewd     : Move the working directory into the result directory at the end instead of deleting it.
 
--levels     : Integer, minimum 1, maximum 3. Indicates level of refinement required.
+-savedm     : Save the final distance map to the result directory as prime-distmap.nii.gz.
 
--ref        : Reference label against which to log Jaccard overlap results.
+-tpn        : Transformation normalizing the target to the atlas reference space. By default it is
+              calculated by registering the target to the atlas's base/refspace/img.nii.gz.
 
--par        : Number of jobs to run in parallel (shell level).  Please use with consideration.
+-ref        : Reference label against which to log Jaccard overlap results (assess.log).
+
+Environment:
+
+PINCRAM_ARCH          local (default) or slurm: how registrations are run. See README.md.
+PINCRAM_USE_LIB       mirtk (default), greedy or irtk: registration library.
+PINCRAM_PROCEED_PCT   Percentage of the selected atlases that must be registered successfully for a level
+                      to proceed (default 100). Under Slurm, once this is reached and no task is running,
+                      tasks that are still queued are cancelled.
+PINCRAM_MAX_ATTEMPTS  Attempts per registration before giving up on an atlas (default 3).
+PINCRAM_SLURM_MEM     Memory per registration task, one value per level (default "4G 4G 8G").
+PINCRAM_SLURM_TIME    Time limit per registration task in minutes, one value per level (default "30 30 120").
+PINCRAM_SLURM_OPTS    Further sbatch options, e.g. "-A account -p partition".
+PINCRAM_DRIVER_THREADS Threads for the driver's own image processing steps (default: see README.md).
 
 EOF
 }
 
-ppath=$(realpath "$BASH_SOURCE")
+ppath=$(realpath "${BASH_SOURCE[0]}")
 cdir=$(dirname "$ppath")
 pn=$(basename "$ppath")
 
@@ -67,450 +82,359 @@ pn=$(basename "$ppath")
 
 commandline="$pn $*"
 
-: ${PINCRAM_ARCH:="bash"}
-: ${PINCRAM_USE_LIB:="mirtk"}
-: ${PINCRAM_PROCEED_PCT:=100}
+: "${PINCRAM_ARCH:=local}"
+: "${PINCRAM_USE_LIB:=mirtk}"
+: "${PINCRAM_PROCEED_PCT:=100}"
 
-case $PINCRAM_USE_LIB in
-    irtk)
-        type areg2 || fatal "Missing binary: areg2 (IRTK) not on path" ;;
-    mirtk)
-        type mirtk || fatal "Missing binary: mirtk not on path" ;;
-    greedy)
-        type greedy || fatal "Missing binary: greedy not on path" ;;
+case $PINCRAM_ARCH in
+    local|bash) arch=local ;;
+    slurm)      arch=slurm
+                type sbatch >/dev/null 2>&1 || fatal "PINCRAM_ARCH=slurm, but sbatch is not on the path" ;;
+    *)          fatal "PINCRAM_ARCH=$PINCRAM_ARCH is not supported (use local or slurm)" ;;
 esac
 
+case $PINCRAM_USE_LIB in
+    irtk)   type areg2  >/dev/null 2>&1 || fatal "Missing binary: areg2 (IRTK) not on path" ;;
+    mirtk)  ;;
+    greedy) type greedy >/dev/null 2>&1 || fatal "Missing binary: greedy not on path" ;;
+    *)      fatal "PINCRAM_USE_LIB=$PINCRAM_USE_LIB is not supported (use mirtk, greedy or irtk)" ;;
+esac
+type mirtk     >/dev/null 2>&1 || fatal "Missing binary: mirtk (MIRTK) not on path"
+type seg_maths >/dev/null 2>&1 || fatal "Missing binary: seg_maths (NiftySeg) not on path"
 export PINCRAM_ARCH PINCRAM_USE_LIB
-msg "Architecture $PINCRAM_ARCH"
-msg "Library $PINCRAM_USE_LIB"
 
-type seg_maths || fatal "Missing binary: seg_maths (NiftySeg) not on path"
+. "$cdir"/scheduler
 
 [[ $# -lt 3 ]] && fatal "Too few parameters"
 
 tgt=$(realpath "$1") ; shift
-test -e $tgt || fatal "No image found -- $t"
+[[ -e $tgt ]] || fatal "No image found -- $tgt"
 
-tpn=
-result=
-par=1
-ref=none
-atlas=$(realpath "$cdir"/atlas)
-atlasn=0
-workdir=$PWD
-pickup=
-while [[ $# -gt 0 ]]
-do
+tpn= ; result= ; par= ; threads=1 ; ref=none ; atlas=$cdir/atlas ; atlasn=0 ; workdir= ; savewd=0 ; savedm=0 ; levels=3
+while [[ $# -gt 0 ]] ; do
     case "$1" in
-        -tpn)               tpn=$(realpath "$2"); shift;;
-        -result)         result=$(realpath "$2"); shift;;
-        -atlas)           atlas=$(realpath "$2"); shift;;
-        -workdir)       workdir=$(realpath "$2"); shift;;
-        -pickup)         pickup=$(realpath "$2"); shift;;
-        -ref)               ref=$(realpath "$2"); shift;;
-        -savewd)         savewd=1 ;;
-        -savedm)         savedm=1 ;;
-        -atlasn)         atlasn="$2"; shift;;
-        -levels)         levels="$2"; shift;;
-        -par)               par="$2"; shift;;
-        --) shift; break;;
-        -*)
-            fatal "Unknown parameter" ;;
-        *)  break;;
+        -tpn)     tpn=$(realpath "$2") ; shift ;;
+        -result)  result=$(realpath -m "$2") ; shift ;;
+        -atlas)   atlas=$(realpath "$2") ; shift ;;
+        -workdir) workdir=$(realpath -m "$2") ; shift ;;
+        -ref)     ref=$(realpath "$2") ; shift ;;
+        -savewd)  savewd=1 ;;
+        -savedm)  savedm=1 ;;
+        -atlasn)  atlasn=$2 ; shift ;;
+        -levels)  levels=$2 ; shift ;;
+        -par)     par=$2 ; shift ;;
+        -threads) threads=$2 ; shift ;;
+        -pickup)  fatal "-pickup has been removed: runs cannot be resumed" ;;
+        -*)       fatal "Unknown parameter $1" ;;
+        *)        fatal "Unexpected argument $1" ;;
     esac
     shift
 done
 
-[[ -n "$result" ]] || fatal "Result directory name not set (e.g. -result pincram-masks)"
-mkdir -p "$result"
-[[ -d "$result" ]] || fatal "Failed to create directory for result output ($result)"
+[[ -n $result ]] || fatal "Result directory name not set (e.g. -result pincram-masks)"
+mkdir -p "$result" || fatal "Failed to create directory for result output ($result)"
+[[ -e $atlas ]] || fatal "Atlas directory or file does not exist ($atlas)"
+[[ $levels =~ ^[1-3]$ ]] || fatal "-levels must be 1, 2 or 3"
+maxlevel=$((levels-1))
+[[ $atlasn =~ ^[0-9]+$ ]] || fatal "-atlasn must be an integer"
+[[ $threads =~ ^[1-9][0-9]*$ ]] || fatal "-threads must be a positive integer"
+[[ $PINCRAM_PROCEED_PCT =~ ^[0-9]+$ && $PINCRAM_PROCEED_PCT -le 100 ]] || fatal "PINCRAM_PROCEED_PCT must be an integer from 0 to 100"
+minpct=$PINCRAM_PROCEED_PCT
 
-[[ -e "$atlas" ]] || fatal "Atlas directory or file does not exist"
-
-## Set levels to three unless set to 1 or 2 via -levels option
-[[ "$levels" =~ ^[1-2]$ ]] || levels=3
-maxlevel=$[$levels-1]
-
-[[ "$par" =~ ^[0-9]+$ ]] || par=1
+## Concurrency: -par registrations at a time, -threads each; the driver's own steps use drvthreads
+ncpu=$(nproc)
+if [[ -z $par ]] ; then
+    if [[ $arch == local ]] ; then par=$(( ncpu / threads )) ; (( par < 1 )) && par=1 ; else par=0 ; fi
+fi
+[[ $par =~ ^[0-9]+$ ]] || fatal "-par must be a non-negative integer"
+[[ $arch == local && $par -eq 0 ]] && fatal "-par must be at least 1 for local execution"
+drvthreads=${PINCRAM_DRIVER_THREADS:-}
+if [[ -z $drvthreads ]] ; then
+    if [[ $arch == local ]] ; then
+        drvthreads=$(( par * threads )) ; (( drvthreads > ncpu )) && drvthreads=$ncpu
+    else
+        drvthreads=${SLURM_CPUS_ON_NODE:-$threads}
+    fi
+fi
+[[ $drvthreads =~ ^[1-9][0-9]*$ ]] || fatal "PINCRAM_DRIVER_THREADS must be a positive integer"
 
 msg "$(date)"
 msg "Extracting $tgt"
 msg "Writing brain label to $result"
-
-if [[ -n $PINCRAM_PROCEED_PCT ]]
-then
-    minpct=$PINCRAM_PROCEED_PCT
-else
-    minpct=100
-fi
+msg "Execution: $arch, library $PINCRAM_USE_LIB, $( (( par > 0 )) && echo "up to $par" || echo "unlimited") concurrent registrations with $threads thread(s) each, $drvthreads thread(s) for fusion steps"
 
 ### Functions
 
 finish () {
+    local rc=$? jid active
+    set +e
+    if [[ $arch == slurm ]] ; then
+        jid=$(cat "$td"/slurm-*.jobid 2>/dev/null | paste -s -d ,)
+        if [[ -n $jid ]] ; then
+            active=$(squeue -j "$jid" -h -r -o %A 2>/dev/null | sort -u | paste -s -d ,)
+            if [[ -n $active ]] ; then
+                msg "Cancelling Slurm job(s) $active"
+                scancel "$active"
+            fi
+        fi
+    fi
     if [[ $savewd -eq 1 ]] ; then
-        chmod -R u+rwX $td
-        mv "$td" "$result"
+        chmod -R u+rwX "$td"
+        mv "$td" "$result"/
+        msg "Working directory saved as $result/$(basename "$td")"
     else
         rm -rf "$td"
     fi
-    exit
+    exit "$rc"
 }
 
-labelstats() {
-    local i1=$1 ; shift
-    local i2=$1 ; shift
-    mirtk evaluate-label-overlap $i1 $i2 -precision 6 -table -noid | tail -n 1
+# addargs IMG... : print a seg_maths argument list that sums the images (IMG1 -add IMG2 -add ...)
+addargs () {
+    local first=1 m
+    for m ; do
+        (( first )) || echo -add
+        echo "$m"
+        first=0
+    done
 }
 
-assess() {
-    local glabels="$1"
+labelstats () {
+    mirtk evaluate-label-overlap "$1" "$2" -precision 6 -table -noid | tail -n 1
+}
+
+# assess LABEL : log the overlap of LABEL with the -ref image, if given. The label is resampled
+# onto the reference lattice and given its header, as the overlap tool insists on identical lattices.
+assess () {
+    local glabels=$1
     if [[ -e ref.nii.gz ]] ; then
-        mirtk edit-image "$glabels" assess.nii.gz -copy-size ref.nii.gz >>noisy.log 2>&1
-        echo -e "${glabels}:\t\t"$(labelstats ref.nii.gz assess.nii.gz -false)
+        mirtk transform-image "$glabels" assess.nii.gz -target ref.nii.gz -interp NN >>noisy.log 2>&1
+        mirtk edit-image assess.nii.gz assess.nii.gz -copy-size ref.nii.gz >>noisy.log 2>&1
+        echo -e "${glabels}:\t\t$(labelstats ref.nii.gz assess.nii.gz)"
     fi
     return 0
 }
 
-origin() {
-    img="$1" ; shift
-    mirtk info $img | grep -v File.name | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6
+origin () {
+    mirtk info "$1" | grep -v 'File name' | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6
 }
 
-nmi() {
-    local img=$1
-    mirtk evaluate-similarity \
-          target-full.nii.gz $img \
-          -mask emargin-$thislevel-dil.nii.gz \
-          -metric NMI \
-          -precision 7 \
-          -table \
-          -threads 1 \
-          -noid | tail -n 1
+# odistmap IMG OUT : negated distance map of the Otsu-thresholded, smoothed image
+odistmap () {
+    seg_maths "$1" -smo 6 -otsu im-otsu.nii.gz
+    mirtk calculate-distance-map im-otsu.nii.gz odm.nii.gz -threads "$drvthreads"
+    mirtk calculate-element-wise odm.nii.gz -mul -1 -threads "$drvthreads" -o "$2"
 }
 
-odistmap() {
-    local img=$1 ; shift
-    local out=$1
-    seg_maths $img -smo 6 -otsu im-otsu.nii.gz
-    mirtk calculate-distance-map im-otsu.nii.gz odm.nii.gz -threads $par
-    mirtk calculate-element-wise odm.nii.gz -mul -1 -threads $par -o $out
-}
+### Working directory
 
-eucmap() {
-    local mask=$1 ; shift
-    local map=$1
-    mirtk calculate-distance-map $mask dm.nii.gz -threads $par
-    mirtk calculate-element-wise dm.nii.gz -mul -1 -threads $par -o $map
-}
-
-### Core working directory
-
-if [[ -n "$pickup" ]]
-then
-    [[ -d $pickup ]] || fatal "Pickup directory $pickup does not exist"
-    td=$pickup
-    savewd=1
-    cd "$td" || fatal "Error: cannot cd to temp directory $td"
-    ## Unpack old results if existing
-    touch 0.tar
-    set -- *.tar
-    shift
-    while [[ $# -gt 0 ]]
-    do
-        tar -xf $1 ; rm $1 ; shift
-    done
-    touch 0.log ; rm *.log
-    touch weights0.csv ; rm weights*.csv
-else
-    if [[ $PINCRAM_ARCH == "pbs" ]] ; then
-        mkdir -p "$workdir"
-        td=$(mktemp -d "$workdir/$(basename $0).XXXXXX") || fatal "Could not create working directory in $workdir"
-    else
-        td=$(tempdir)
-    fi
+if [[ -z $workdir ]] ; then
+    if [[ $arch == slurm ]] ; then workdir=$PWD ; else workdir=${TMPDIR:-/tmp}/$USER ; fi
 fi
-export PINCRAM_WORKDIR=$td
+mkdir -p "$workdir" || fatal "Could not create $workdir"
+td=$(mktemp -d "$workdir/pincram.XXXXXX") || fatal "Could not create working directory in $workdir"
 trap finish EXIT
-cd "$td" || fatal "Error: cannot cd to temp directory $td"
+cd "$td" || fatal "Cannot cd to working directory $td"
+mkdir -p status logs tmp
 msg "Working in directory $td"
-
+msg "$commandline"
+echo "$commandline" >commandline.log
 
 ### Atlas database read and check
 
-if [[ -d "$atlas" ]] ; then
-    if [[ -e "$atlas"/etc/atlases.csv ]] ; then
-        atlas="$atlas"/etc/atlases.csv
+if [[ -d $atlas ]] ; then
+    if [[ -e $atlas/etc/atlases.csv ]] ; then
+        atlas=$atlas/etc/atlases.csv
     else
         "$cdir"/atlas-csv-gen.sh "$atlas" atlases.csv
         atlas=$PWD/atlases.csv
     fi
 fi
 
-atlasbase=$(head -n 1 $atlas)
-set -- $(head -n 2 $atlas | tail -n 1 | tr ',' ' ')
-shift
-while [[ $# -gt 0 ]] ; do
-    [[ -e $atlasbase/$1 ]] || fatal "Atlas error ($atlasbase/$1 does not exist)"
-    shift
+atlasbase=$(head -n 1 "$atlas")
+IFS=, read -r _ f1 f2 f3 f4 < <(sed -n 2p "$atlas")
+for f in "$f1" "$f2" "$f3" "$f4" ; do
+    [[ -e $atlasbase/$f ]] || fatal "Atlas error ($atlasbase/$f does not exist)"
 done
 
+refspace=
 if [[ -z $tpn ]] ; then
     refspace=$atlasbase/base/refspace/img.nii.gz
-    [[ -e $refspace ]] || fatal "No reference space declared ($refspace) and -tpn not provided"
+    [[ -e $refspace ]] || fatal "No reference space found ($refspace) and -tpn not provided"
 fi
 
-atlasmax=$[$(cat $atlas | wc -l)-1]
-[[ "$atlasn" =~ ^[0-9]+$ ]] || atlasn=$atlasmax
-[[ "$atlasn" -gt $atlasmax || "$atlasn" -eq 0 ]] && atlasn=$atlasmax
-
-msg "$commandline"
-echo "$commandline" >commandline.log
-
+atlasmax=$(( $(grep -c '' "$atlas") - 1 ))
+(( atlasn == 0 || atlasn > atlasmax )) && atlasn=$atlasmax
+(( atlasn >= 7 )) || fatal "At least 7 atlases are needed; $atlasn available"
 
 ### Target preparation
 
 originalorigin=$(origin "$tgt")
-if [[ -z $pickup ]]
-then
-    mirtk edit-image "$tgt" target-full.nii.gz -origin 0 0 0
-    mirtk convert-image target-full.nii.gz target-full.nii.gz -float
-    [[ -e "$ref" ]] && mirtk edit-image "$ref" ref.nii.gz -origin 0 0 0 && chmod +w ref.nii.gz
-    if [[ -n $refspace ]] ; then
-        msg "Calculating affine normalization to reference space with distance maps"
-        odistmap $refspace refspace-dm.nii.gz
-        odistmap target-full.nii.gz target-dm.nii.gz
-        mirtk register refspace-dm.nii.gz target-dm.nii.gz \
-              -model Affine \
-              -sim SSD \
-              -dofout pre-dof.gz \
-              -level 4 \
-              -threads $par >noisy.log 2>&1
-        mirtk register $refspace target-full.nii.gz \
-              -model Affine \
-              -dofin pre-dof.gz \
-              -dofout tpn.dof.gz \
-              -levels 3 1 \
-              -threads $par >noisy.log 2>&1
-        tpn=$td/tpn.dof.gz
-    fi
+mirtk edit-image "$tgt" target-full.nii.gz -origin 0 0 0
+mirtk convert-image target-full.nii.gz target-full.nii.gz -float
+if [[ -e $ref ]] ; then
+    mirtk edit-image "$ref" ref.nii.gz -origin 0 0 0
+    chmod +w ref.nii.gz
+fi
+if [[ -n $refspace ]] ; then
+    msg "Calculating affine normalization to reference space with distance maps"
+    odistmap "$refspace" refspace-dm.nii.gz
+    odistmap target-full.nii.gz target-dm.nii.gz
+    mirtk register refspace-dm.nii.gz target-dm.nii.gz \
+          -model Affine \
+          -sim SSD \
+          -dofout pre-dof.gz \
+          -level 4 \
+          -threads "$drvthreads" >noisy.log 2>&1
+    mirtk register "$refspace" target-full.nii.gz \
+          -model Affine \
+          -dofin pre-dof.gz \
+          -dofout tpn.dof.gz \
+          -levels 3 1 \
+          -threads "$drvthreads" >>noisy.log 2>&1
+    tpn=$td/tpn.dof.gz
 fi
 
-### Array
-
-levelname[0]="coarse"
-levelname[1]="affine"
-levelname[2]="nonrigid"
-levelname[3]="none"
-
-
-### Initialize first loop
-
-tgt="$PWD"/target-full.nii.gz
-tdm="dummy"
-tmg=$tgt
-level=0
-prevlevel=init
-seq 1 $atlasn >selection-$prevlevel.csv
-nselected=$(cat selection-$prevlevel.csv | wc -l)
-usepercent=$(echo $nselected | awk '{ printf "%.0f", 100*(8/$1)^(1/3) } ')
-# usepercent=75
-
 ### Iterate over levels
+#
+# Job lines: one per atlas and level, in job-l<level>-a1.conf, consumed by reg.sh:
+#   -idx N -lev L -tgt IMG -src IMG -msk IMG -spn DOF -tpn DOF -tmargin IMG
+#   -srctr OUT -masktr OUT -dofin DOF -dofout OUT [-tdm IMG] [-alt IMG -alttr OUT]
+# -tdm (fused mask of the previous level) exists from level 1 on; the alternative masks
+# are only propagated at the final level, where they are needed.
 
-for level in $(seq 0 $maxlevel) ; do
+levelname=(coarse affine nonrigid)
+tgt=$PWD/target-full.nii.gz
+tdm=
+tmg=$tgt
+prevlevel=init
+seq 1 "$atlasn" >selection-$prevlevel.csv
+nselected=$atlasn
+usepercent=$(awk -v n="$nselected" 'BEGIN { printf "%.0f", 100*(8/n)^(1/3) }')
+
+for level in $(seq 0 "$maxlevel") ; do
     thislevel=${levelname[$level]}
-    msg "Level $thislevel"
-    cat /dev/null >job.conf
+    msg "Level $level ($thislevel)"
 
-    ## Prep datasets line by line in job.conf
-    for srcindex in $(cat selection-$prevlevel.csv) ; do
+    ## Job lines for the atlases selected at the previous level
+    conf=$td/job-l$level-a1.conf
+    : >"$conf"
+    while read -r srcindex ; do
+        IFS=, read -r _ src spn msk alt < <(sed -n "$((srcindex+1))p" "$atlas")
+        line="-idx $srcindex -lev $level -tgt $tgt -src $atlasbase/$src -msk $atlasbase/$msk"
+        line+=" -spn $atlasbase/$spn -tpn $tpn -tmargin $tmg"
+        line+=" -srctr $PWD/srctr-$thislevel-s$srcindex.nii.gz -masktr $PWD/masktr-$thislevel-s$srcindex.nii.gz"
+        line+=" -dofin $PWD/reg-s$srcindex-$prevlevel.dof.gz -dofout $PWD/reg-s$srcindex-$thislevel.dof.gz"
+        (( level > 0 )) && line+=" -tdm $tdm"
+        (( level == maxlevel )) && line+=" -alt $atlasbase/$alt -alttr $PWD/alttr-s$srcindex.nii.gz"
+        echo "$line" >>"$conf"
+    done <selection-"$prevlevel".csv
 
-        # Read in atlas
-        atlasname= ; src= ; mrgorspn= ; mrg= ; spn= ; msk= ; alt= ; mrggen=
-        set -- $(head -n $[$srcindex+1] $atlas | tail -n 1 | tr ',' ' ')
-        atlasname=$1 ; shift
-        src=$atlasbase/$1 ; shift
-        spn=$atlasbase/$1 ; shift
-        msk=$atlasbase/$1 ; shift
-        alt=$atlasbase/$1 ; shift
-        if [[ $level -ge 2 ]] ; then
-            mrggen=$td/mrggen-s$srcindex.nii.gz
-            if [[ ! -e $mrggen ]] ; then
-                mrg=$td/mrg-s$srcindex.nii.gz
-                seg_maths $msk -abs -uthr 7 -bin -mul $src $mrggen
-                src=$mrggen
-            fi
-        fi
-        srctr="$PWD"/srctr-$thislevel-s$srcindex.nii.gz
-        masktr="$PWD"/masktr-$thislevel-s$srcindex.nii.gz
-        dofin="$PWD"/reg-s$srcindex-$prevlevel.dof.gz
-        dofout="$PWD"/reg-s$srcindex-$thislevel.dof.gz
-        alttr="$PWD"/alttr-$thislevel-s$srcindex.nii.gz
+    ## Registrations, with retries
+    minready=$(( nselected * minpct / 100 ))
+    (( minready < 7 )) && minready=7
+    run_registrations "$level"
+    thissize=$(count_ready "$level")
+    msg "Level $thislevel: $thissize of $nselected mask transformations completed (minimum $minready)"
+    (( thissize >= minready )) || fatal "Too few registrations succeeded at level $thislevel"
 
-        if [[ ! -s $masktr ]]
-        then
-            echo "-tgt $tgt" "-tdm $tdm" "-src $src" "-srctr $srctr" "-msk $msk" "-masktr $masktr" "-alt $alt" "-alttr $alttr" "-dofin $dofin" "-dofout $dofout" "-spn $spn" "-tpn $tpn" "-lev $level" "-tmargin $tmg" "-par $par" >>$td/job.conf
-        fi
-    done
-
-
-    ## Launch parallel registrations
-    cp job.conf job-$thislevel.conf
-    if [[ -s job.conf ]]
-    then
-        msg "Launching registrations"
-        csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level -jobs $par)
-        etasec=$(( $(date +%s) + $csec ))
-        eta=$(date -d "@$etasec")
-        [[ $PINCRAM_ARCH == "pbs" ]] && msg "First job status check at $eta"
-    fi
-
-
-    ## Monitor incoming results and wait
-    loopcount=0
-    masksready=0
-    minready=$[$nselected*$minpct/100]
-    echo -n $($cdir/spark 0 $masksready $nselected | cut -c 2)
-    sleeptime=$[$level*5+5]
-    until [[ $masksready -ge $minready ]]
-    do
-        (( loopcount += 1 ))
-        [[ loopcount -gt 500 ]] && fatal "Waited too long for registration results"
-        prevmasksready=$masksready
-        masksready=$( ls masktr-$thislevel-s* 2>/dev/null | wc -l )
-        [[ $masksready -gt $prevmasksready ]] && loopcount=0
-        [[ $masksready -eq 1 ]] && masksready=0
-        echo -n $($cdir/spark 0 $masksready $nselected | cut -c 2)
-        if [[ $(date +%s ) -gt $etasec ]]
-        then
-            echo
-            fatal "Masks not ready by deadline. Relaunching registrations" # TODO: change back to "msg"
-            csec=$("$cdir"/distrib -script "$cdir"/reg.sh -datalist $td/job.conf -level $level -jobs $par)
-            etasec=$(( $(date +%s) + $csec ))
-            eta=$(date -d "@$etasec")
-            [[ $PINCRAM_ARCH == "pbs" ]] && msg "Next job status check at $eta"
-        fi
-        sleep $sleeptime
-    done
-    echo
-    msg "Minimum number of mask transformations calculated"
-    [[ $masksready -lt $nselected ]] && sleep 30  # Extra sleep if we're going on an incomplete mask set
-
-    ## Generate reference for atlas selection (fused from all)
-    set -- masktr-$thislevel-s*
-    thissize=$#
-    msg "Individual mask transformations: selected $nselected, minimum $minready, completed $thissize"
+    ## Reference for atlas selection, fused from all transformed masks
     msg "Building reference atlas for selection at level $thislevel"
-    tar -cf masktr-$thislevel-n$thissize.tar $@
-    [[ $thissize -lt 7 ]] && fatal "Mask generation failed at level $thislevel"
-    set -- $(echo $@ | sed 's/ / -add /g')
-    seg_maths $@ -div $thissize tmask-$thislevel-sum.nii.gz
+    masks=(masktr-"$thislevel"-s*.nii.gz)
+    mapfile -t args < <(addargs "${masks[@]}")
+    seg_maths "${args[@]}" -div "$thissize" tmask-"$thislevel"-sum.nii.gz
     tdm=$PWD/tmask-$thislevel-sum.nii.gz
 
-    ## Generate intermediate target mask
-    seg_maths tmask-$thislevel-sum.nii.gz -thr 0 -bin tmask-$thislevel.nii.gz
-    assess tmask-$thislevel.nii.gz | tee -a assess.log
+    ## Intermediate target mask
+    seg_maths tmask-"$thislevel"-sum.nii.gz -thr 0 -bin tmask-"$thislevel".nii.gz
+    assess tmask-"$thislevel".nii.gz | tee -a assess.log
 
+    ## Target margin mask for similarity ranking
+    thresh1=$(awk -v l="$level" 'BEGIN { printf "%.8f", (l-5)^2/3 }')
+    seg_maths tmask-"$thislevel"-sum.nii.gz -abs -uthr "$thresh1" -bin emargin-"$thislevel"-dil.nii.gz
 
-    ## Generate target margin mask for similarity ranking and apply
-    thresh1=$( echo "( $level - 5 )^2 / 3" | bc -l )
-    seg_maths tmask-$thislevel-sum.nii.gz -abs -uthr $thresh1 -bin emargin-$thislevel-dil.nii.gz
-
-
-    ## Selection
+    ## Selection: rank atlases by NMI between their transformed image and the target within the margin
     msg "Selecting"
-    set -- $(cat selection-$prevlevel.csv)
-    set -- $(for i ; do ls srctr-$thislevel-s$i.nii.gz ; done)
-    mirtk evaluate-similarity target-full.nii.gz $@ \
-          -mask emargin-$thislevel-dil.nii.gz \
-          -metric NMI -precision 7 -threads $par \
-          -table -header off |\
-        rev | cut -d s -f 1 | rev | sort -rn -t , -k 2 | tee simm-$thislevel.csv |\
-        cut -d , -f 1 >ranking-$thislevel.csv
+    srcs=(srctr-"$thislevel"-s*.nii.gz)
+    mirtk evaluate-similarity target-full.nii.gz "${srcs[@]}" \
+          -mask emargin-"$thislevel"-dil.nii.gz \
+          -metric NMI -precision 7 -threads "$drvthreads" \
+          -table -header off |
+        sed -E 's/^.*-s([0-9]+),/\1,/' | sort -rn -t , -k 2 >simm-"$thislevel".csv
+    [[ -s simm-$thislevel.csv ]] || fatal "Similarity ranking failed at level $thislevel"
+    cut -d , -f 1 simm-"$thislevel".csv >ranking-"$thislevel".csv
+    rm -f srctr-"$thislevel"-s*.nii.gz                         # srctr: no longer needed
 
-    tar -cf srctr-$thislevel.tar srctr-$thislevel-s*.nii.gz ; rm srctr-$thislevel-s*.nii.gz
-    tar -cf alttr-$thislevel.tar alttr-$thislevel-s*.nii.gz
-    maxweight=$(head -n 1 simm-$thislevel.csv | cut -d , -f 2)
-    nselected=$[$thissize*$usepercent/100]
-    [[ $nselected -lt 9 ]] && nselected=7
-    split -l $nselected ranking-$thislevel.csv
-    mv xaa selection-$thislevel.csv
-    [[ -e xab ]] && cat x?? > unselected-$thislevel.csv
+    maxweight=$(head -n 1 simm-"$thislevel".csv | cut -d , -f 2)
+    nselected=$(( thissize * usepercent / 100 ))
+    (( nselected < 9 )) && nselected=7
+    head -n "$nselected" ranking-"$thislevel".csv >selection-"$thislevel".csv
+    tail -n +"$((nselected+1))" ranking-"$thislevel".csv >unselected-"$thislevel".csv
     msg "Selected $nselected at $thislevel"
 
-
-    ## Build label from selection
-    head -n $nselected simm-$thislevel.csv | tr , ' ' | while read s nmi
-    do
-        weight=$(echo '1 / ( '$maxweight' - 1 ) * ( '$nmi' - 1 )' | bc -l )
-        echo $s,$weight >>weights-$thislevel.csv
-        seg_maths masktr-$thislevel-s$s.nii.gz -mul $weight masktr-$thislevel-weighted-s$s.nii.gz
-    done
-    set -- masktr-$thislevel-weighted-s*.nii.gz
-    set -- $(echo $@ | sed 's/ / -add /g')
-    seg_maths $@ tmask-$thislevel-sel-sum.nii.gz
-    seg_maths tmask-$thislevel-sel-sum.nii.gz -thr 0 -bin tmask-$thislevel-sel.nii.gz
-    assess tmask-$thislevel-sel.nii.gz | tee -a assess.log
+    ## Label from the selection, weighted by similarity
+    : >weights-"$thislevel".csv
+    weighted=()
+    while IFS=, read -r s nmi ; do
+        weight=$(awk -v m="$maxweight" -v n="$nmi" 'BEGIN { printf "%.10f", (n-1)/(m-1) }')
+        echo "$s,$weight" >>weights-"$thislevel".csv
+        seg_maths masktr-"$thislevel"-s"$s".nii.gz -mul "$weight" masktr-"$thislevel"-weighted-s"$s".nii.gz
+        weighted+=(masktr-"$thislevel"-weighted-s"$s".nii.gz)
+    done < <(head -n "$nselected" simm-"$thislevel".csv)
+    mapfile -t args < <(addargs "${weighted[@]}")
+    seg_maths "${args[@]}" tmask-"$thislevel"-sel-sum.nii.gz
+    seg_maths tmask-"$thislevel"-sel-sum.nii.gz -thr 0 -bin tmask-"$thislevel"-sel.nii.gz
+    assess tmask-"$thislevel"-sel.nii.gz | tee -a assess.log
+    rm -f masktr-"$thislevel"-s*.nii.gz masktr-"$thislevel"-weighted-s*.nii.gz   # masktr: no longer needed
+    rm -f reg-s*-"$prevlevel".dof.gz                 # previous level's transformations: only needed as initialization
     prevlevel=$thislevel
 
-
-    ## Target data mask (skip on last iteration)
-    set -- $( head -n $nselected weights-$thislevel.csv | cut -d , -f 2 )
-    scalefactor=$( echo $@ | sed 's/ / + /g' | bc -l )
-    seg_maths tmask-$thislevel-sel-sum.nii.gz -div $scalefactor distmap-$thislevel.nii.gz
-    [[ $level -eq $maxlevel ]] && continue
-    thresh2=$( echo "( $level - 6 )^2 / 5" | bc -l )
-    seg_maths distmap-$thislevel.nii.gz -abs -uthr $thresh2 -bin dmargin-$thislevel.nii.gz
-    tmg="$PWD"/dmargin-$thislevel.nii.gz
+    ## Distance map of the selection; margin mask for the next level
+    scalefactor=$(head -n "$nselected" weights-"$thislevel".csv | awk -F , '{ s += $2 } END { printf "%.10f", s }')
+    seg_maths tmask-"$thislevel"-sel-sum.nii.gz -div "$scalefactor" distmap-"$thislevel".nii.gz
+    (( level == maxlevel )) && continue
+    thresh2=$(awk -v l="$level" 'BEGIN { printf "%.8f", (l-6)^2/5 }')
+    seg_maths distmap-"$thislevel".nii.gz -abs -uthr "$thresh2" -bin dmargin-"$thislevel".nii.gz
+    tmg=$PWD/dmargin-$thislevel.nii.gz
 done
 
+### Success index (SI)
 
-### Calculate success index (SI)
+echo -n "SI:" ; labelstats tmask-"$thislevel".nii.gz tmask-"$thislevel"-sel.nii.gz | tee "$result"/si.csv
 
-echo -n "SI:" ; labelstats tmask-$thislevel.nii.gz tmask-$thislevel-sel.nii.gz -false | tee "$result"/si.csv
+### Alternative (ICV) mask from the final selection
 
-
-### Generate alt (ICV) masks
-
-altc=0
-addswitch=
-cat selection-$thislevel.csv | while read -r item
-do
-    alts=alttr-$thislevel-s$item.nii.gz
-    if [[ -s $alts ]]
-    then
-        (( altc += 1 ))
-        seg_maths $alts -add 1 -mul 2 -sub 3 $addswitch altmsk-sum.nii.gz
-        addswitch="-add altmsk-sum.nii.gz"
-    fi
-done
-rm alttr-*.nii.gz
-
+altc=0 ; addswitch=()
+while read -r s ; do
+    alts=alttr-s$s.nii.gz
+    [[ -s $alts ]] || continue
+    (( ++altc ))
+    seg_maths "$alts" -add 1 -mul 2 -sub 3 "${addswitch[@]}" altmsk-sum.nii.gz
+    addswitch=(-add altmsk-sum.nii.gz)
+done <selection-"$thislevel".csv
+(( altc > 0 )) || fatal "No transformed alternative masks found"
+rm -f alttr-s*.nii.gz                                # alttr: no longer needed
+[[ $savewd -eq 1 ]] || rm -f reg-s*-"$thislevel".dof.gz
 
 ### Combine mask types to create wide (ICV) and narrow (parenchymal) masks
 
-seg_maths altmsk-sum.nii.gz -div $altc -thr 0 -bin altmsk-bin.nii.gz
-seg_maths altmsk-bin.nii.gz -mul tmask-$thislevel-sel.nii.gz andmask.nii.gz
-seg_maths altmsk-bin.nii.gz -add tmask-$thislevel-sel.nii.gz -bin ormask.nii.gz
+seg_maths altmsk-sum.nii.gz -div "$altc" -thr 0 -bin altmsk-bin.nii.gz
+seg_maths altmsk-bin.nii.gz -mul tmask-"$thislevel"-sel.nii.gz andmask.nii.gz
+seg_maths altmsk-bin.nii.gz -add tmask-"$thislevel"-sel.nii.gz -bin ormask.nii.gz
 mirtk convert-image andmask.nii.gz parenchyma1.nii.gz -uchar >>noisy.log 2>&1
 mirtk convert-image ormask.nii.gz icv1.nii.gz -uchar >>noisy.log 2>&1
-
 
 ### Compare output mask with reference
 
 assess parenchyma1.nii.gz | tee -a assess.log
 
-
-### Package and delete transformations
-
-# tar -cf reg-dofs.tar reg*.dof* ; rm reg*.dof*
-
-
 ### Apply original origin settings and copy output
 
+# shellcheck disable=SC2086  # three coordinates
 mirtk edit-image parenchyma1.nii.gz parenchyma.nii.gz -origin $originalorigin
+# shellcheck disable=SC2086
 mirtk edit-image icv1.nii.gz icv.nii.gz -origin $originalorigin
-[[ $savedm == 1 ]] && mirtk edit-image distmap-$thislevel.nii.gz "$result"/prime-distmap.nii.gz -origin $originalorigin
+# shellcheck disable=SC2086
+[[ $savedm -eq 1 ]] && mirtk edit-image distmap-"$thislevel".nii.gz "$result"/prime-distmap.nii.gz -origin $originalorigin
 cp parenchyma.nii.gz icv.nii.gz "$result"/
 [[ -s assess.log ]] && cp assess.log "$result"/
 

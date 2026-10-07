@@ -1,25 +1,20 @@
+# shellcheck shell=bash
+# shellcheck disable=SC2154  # variables are provided by the sourcing script
+#
+# functions -- helpers shared by the pincram scripts
+#
+# Sourced after the including script has set $pn (its own name) and defined usage().
+
 msg () {
-    for msgline
-    do echo "$pn: $msgline" >&2
-    done
+    local msgline
+    for msgline ; do echo "$pn: $msgline" >&2 ; done
 }
 
 fatal () { usage ; msg "$@" ; exit 1 ; }
 
+# tempdir : create a uniquely named directory under $TMPDIR/$USER and print its path
 tempdir () {
-    : ${TMPDIR:="/tmp"}
-    tdbase=$TMPDIR/$USER
-    test -e $tdbase || mkdir -p $tdbase
-    td=$(mktemp -d $tdbase/$(basename $0).XXXXXX) || fatal "Could not create temp dir in $tdbase"
-    echo "$td"
-}
-
-brake () {
-    local n=$1
-    : ${n:=0}
-    while true
-    do
-      	j=$(jobs -r | wc -l)
-	[[ $j -lt $n ]] && break
-    done ;
+    local base=${TMPDIR:-/tmp}/$USER
+    mkdir -p "$base" || fatal "Could not create $base"
+    mktemp -d "$base/$(basename "$0").XXXXXX" || fatal "Could not create temp dir in $base"
 }

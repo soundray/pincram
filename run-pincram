@@ -1,62 +1,48 @@
 #!/usr/bin/env bash
+#
+# run-pincram -- sample launcher. Copy, adapt the settings and run: run-pincram t1.nii.gz
+#
+# For the full list of options and environment variables, call pincram.sh without arguments.
 
 #####
-# Parallelization architecture / middleware
+# Execution: where the atlas-target registrations run
 #####
 
-PINCRAM_ARCH=bash
-# PINCRAM_ARCH=bash-single
-# PINCRAM_ARCH=ge
-# PINCRAM_ARCH=pbs
-export PINCRAM_ARCH
-# export PINCRAM_QUEUE=myqueue ## Gets added to qsub call with -q option
-# export PINCRAM_CHUNKSIZE=1 ## Number of registrations per array subjob
-# export PINCRAM_PBS_OPTION="-l place=free" ## Per-system options
-
+export PINCRAM_ARCH=local            # all on this machine, up to -par registrations at a time
+# export PINCRAM_ARCH=slurm          # one Slurm job array per level; the driver may run on a login node
+# export PINCRAM_SLURM_OPTS="-A myaccount -p mypartition"   # added to every sbatch call
+# export PINCRAM_SLURM_MEM="4G 4G 8G"                        # memory per registration, per level
+# export PINCRAM_SLURM_TIME="30 30 120"                      # minutes per registration, per level
 
 #####
-# Registration library to use
+# Registration library: mirtk (recommended), greedy (experimental) or irtk (deprecated)
 #####
 
-# Options are mirtk (recommended), greedy (under development), or irtk (deprecated)
-
-export PINCRAM_USE_LIB=mirtk 
-
+export PINCRAM_USE_LIB=mirtk
 
 #####
-# Execution parameter
+# Robustness
 #####
 
-export PINCRAM_PROCEED_PCT=100 ## Minimum % ratio of expected atlas transformations on which to continue
-                               ## Trades off reproducibility and accuracy against speed
-                               ## Reduce for rapid testing or when jobs are executed unreliably
-
+export PINCRAM_PROCEED_PCT=100       # % of selected atlases that must register successfully per level.
+                                     # Lower for rapid testing or when the cluster is unreliable.
+export PINCRAM_MAX_ATTEMPTS=3        # Attempts per registration (memory/time doubled after OOM/timeout)
 
 #####
-# Set search path
+# Search path
 #####
 
-base_sw_path=$HOME/software 
+base_sw_path=$HOME/software
 
-## Required -- pincram
-PATH=$base_sw_path/pincram:$PATH
-
-## Required -- https://sourceforge.net/projects/niftyseg/
-PATH=$base_sw_path/niftyseg/build/seg-apps:$PATH
-
-## Required -- https://github.com/BioMedIA/MIRTK 
-PATH=$base_sw_path/mirtk/install/bin:$PATH
-
-## Optional -- https://github.com/BioMedIA/IRTK 
-# PATH=$base_sw_path/irtk/bin:$PATH 
-
-## Optional https://sourceforge.net/projects/niftyseg/
-# PATH=$base_sw_path/greedy/build:$PATH  
-
-export PATH LD_LIBRARY_PATH
+PATH=$base_sw_path/pincram:$PATH                     # Required -- this directory
+PATH=$base_sw_path/niftyseg/build/seg-apps:$PATH     # Required -- https://github.com/KCL-BMEIS/NiftySeg
+PATH=$base_sw_path/mirtk/install/bin:$PATH           # Required -- https://github.com/BioMedIA/MIRTK
+# PATH=$base_sw_path/irtk/bin:$PATH                  # Optional -- https://github.com/BioMedIA/IRTK
+# PATH=$base_sw_path/greedy/build:$PATH              # Optional -- https://github.com/pyushkevich/greedy
+export PATH
 
 #####
 # Call pincram
 #####
 
-pincram.sh $1 -result result -atlas atlas
+pincram.sh "$1" -result result -atlas atlas -threads 1

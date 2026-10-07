@@ -1,0 +1,208 @@
+# shellcheck shell=bash
+# shellcheck disable=SC2154  # variables are provided by the sourcing script
+#
+# scheduler -- concurrency control for pincram's registration batches
+#
+# Sourced by pincram.sh, which provides: td cdir pn arch par threads nselected minready minpct
+# and the helpers from "functions".
+#
+# One level's registrations are described by a job file with one line per atlas (see
+# pincram.sh, "Job lines"). run_registrations runs every line of the job file, waits for
+# the whole batch to finish, then classifies each registration from the status file that
+# reg.sh writes on exit (status/<tag>-n<line>, "rc=<exit code> ...") and, under Slurm, from
+# the accounting state reported by sacct:
+#
+#   mask produced                      -> done
+#   exit code 137 / Slurm OUT_OF_MEMORY -> out of memory: retry with doubled memory
+#   Slurm TIMEOUT                       -> out of time:   retry with doubled time limit
+#   other exit code or no status at all -> failed/killed: retry with the same resources
+#
+# Lines that did not succeed are retried as a new batch (tag l<level>-a<attempt>) until
+# every line has succeeded or PINCRAM_MAX_ATTEMPTS is exhausted. Tasks that are still queued
+# or running are never resubmitted: under Slurm the driver polls squeue and waits for them.
+#
+# Backends (PINCRAM_ARCH):
+#   local  xargs -P $par; every registration is a separate reg.sh process on this machine
+#   slurm  one job array per attempt with one task per registration, throttled to $par
+#          concurrent tasks when $par > 0; resources come from PINCRAM_SLURM_MEM/TIME/OPTS
+
+: "${PINCRAM_MAX_ATTEMPTS:=3}"
+: "${PINCRAM_SLURM_MEM:=4G 4G 8G}"      # one value per level
+: "${PINCRAM_SLURM_TIME:=30 30 120}"    # minutes, one value per level
+: "${PINCRAM_SLURM_OPTS:=}"             # e.g. "-A account -p partition"
+: "${PINCRAM_POLL_SEC:=20}"
+
+[[ $PINCRAM_MAX_ATTEMPTS =~ ^[1-9][0-9]*$ ]] || fatal "PINCRAM_MAX_ATTEMPTS must be a positive integer"
+
+# field FLAG LINE : print the value that follows FLAG in a job line
+field () {
+    local flag=$1 ; shift
+    # shellcheck disable=SC2048,SC2086  # job lines are deliberately word-split
+    set -- $*
+    while [[ $# -gt 1 ]] ; do
+        [[ $1 == "$flag" ]] && { echo "$2" ; return 0 ; }
+        shift
+    done
+    return 0
+}
+
+# nth I WORD... : print the I-th word (0-based), or the last one if there are fewer
+nth () {
+    local i=$1 ; shift
+    (( i >= $# )) && i=$(( $# - 1 ))
+    shift "$i"
+    echo "$1"
+}
+
+# scale_mem MEM N : multiply a Slurm memory specification (4G, 4000M, 4000) by 2^N
+scale_mem () {
+    local mem=$1 n=$2
+    [[ $mem =~ ^([0-9]+)([KMGT]?)$ ]] || fatal "Cannot parse memory specification '$mem'"
+    echo "$(( BASH_REMATCH[1] << n ))${BASH_REMATCH[2]}"
+}
+
+# count_ready LEVEL : number of this level's registrations that have produced a mask
+count_ready () {
+    local n=0 line masktr
+    while read -r line ; do
+        masktr=$(field -masktr "$line")
+        [[ -s $masktr ]] && (( ++n ))
+    done <"$td/job-l$1-a1.conf"
+    echo "$n"
+}
+
+# run_registrations LEVEL : run job-l<LEVEL>-a1.conf to completion, retrying failures
+run_registrations () {
+    local level=$1 attempt=1 conf n
+    bump_mem=0 ; bump_time=0
+    conf=$td/job-l$level-a1.conf
+    while [[ -s $conf ]] ; do
+        n=$(grep -c '' "$conf")
+        msg "Attempt $attempt: running $n registration(s) ($arch)"
+        case $arch in
+            local) batch_local "$conf" "l$level-a$attempt" ;;
+            slurm) batch_slurm "$conf" "l$level-a$attempt" "$level" ;;
+        esac
+        batch_classify "$conf" "l$level-a$attempt" "$level" "$attempt"
+        msg "Attempt $attempt: $cls_ok succeeded, $cls_retry to retry, $cls_dropped given up"
+        conf=$cls_retryconf
+        (( ++attempt ))
+    done
+    return 0
+}
+
+# batch_local CONF TAG : run every line of CONF with up to $par concurrent reg.sh processes
+batch_local () {
+    local conf=$1 tag=$2 n
+    n=$(grep -c '' "$conf")
+    # The bash -c wrapper keeps xargs going when a reg.sh process dies from a signal.
+    # shellcheck disable=SC2016  # expanded by the inner bash
+    seq 1 "$n" | xargs -P "$par" -I{} bash -c '"$1" -conf "$2" -line "$5" -tag "$3" -threads "$4" || true' \
+                       _ "$cdir/reg.sh" "$conf" "$tag" "$threads" {}
+}
+
+# batch_slurm CONF TAG LEVEL : submit CONF as a job array and wait for it to leave the queue
+batch_slurm () {
+    local conf=$1 tag=$2 level=$3
+    local n mem time array jobid
+    n=$(grep -c '' "$conf")
+    # shellcheck disable=SC2086  # the environment settings are deliberately word-split
+    mem=$(scale_mem "$(nth "$level" $PINCRAM_SLURM_MEM)" "$bump_mem")
+    # shellcheck disable=SC2086
+    time=$(( $(nth "$level" $PINCRAM_SLURM_TIME) << bump_time ))
+    array=1-$n ; (( par > 0 )) && array+=%$par
+    # shellcheck disable=SC2086
+    jobid=$(sbatch --parsable --array="$array" --cpus-per-task="$threads" --mem="$mem" --time="$time" \
+                   --job-name="pincram-$tag" --chdir="$td" --output="$td/logs/slurm-$tag-%a.out" \
+                   $PINCRAM_SLURM_OPTS \
+                   --wrap="exec '$cdir/reg.sh' -conf '$conf' -tag '$tag' -threads $threads") ||
+        fatal "sbatch failed"
+    jobid=${jobid%%;*}
+    [[ $jobid =~ ^[0-9]+$ ]] || fatal "Unexpected sbatch output: $jobid"
+    echo "$jobid" >"$td/slurm-$tag.jobid"
+    msg "Submitted Slurm job array $jobid: $n task(s), $threads CPU(s), $mem memory, $time min each"
+    slurm_wait "$jobid" "$level"
+}
+
+# slurm_wait JOBID LEVEL : poll squeue until no task of the array is queued or running.
+# Tasks that are merely queued are left alone, except that once PINCRAM_PROCEED_PCT of the
+# masks are ready and nothing is running any more, the remaining queued tasks are cancelled.
+slurm_wait () {
+    local jobid=$1 level=$2 states active running pending ready failures=0 last=0 now
+    while : ; do
+        if ! states=$(squeue -j "$jobid" -h -r -o %T 2>&1) ; then
+            [[ $states == *"Invalid job id"* ]] && return 0
+            (( ++failures > 15 )) && fatal "squeue keeps failing for job $jobid: $states"
+            msg "squeue failed ($states); retrying in $PINCRAM_POLL_SEC s"
+            sleep "$PINCRAM_POLL_SEC" ; continue
+        fi
+        failures=0
+        active=$(grep -cvE '^(COMPLETED|FAILED|CANCELLED|TIMEOUT|OUT_OF_MEMORY|NODE_FAIL|PREEMPTED|BOOT_FAIL|DEADLINE)' <<<"$states" || true)
+        [[ -z $states ]] && active=0
+        (( active == 0 )) && return 0
+        running=$(grep -c RUNNING <<<"$states" || true)
+        pending=$(grep -c PENDING <<<"$states" || true)
+        ready=$(count_ready "$level")
+        now=$(date +%s)
+        if (( now - last >= 60 )) ; then
+            msg "Job $jobid: $ready/$nselected masks ready, $running task(s) running, $pending queued"
+            last=$now
+        fi
+        if (( minpct < 100 && ready >= minready && running == 0 && pending > 0 )) ; then
+            msg "Minimum of $minready masks reached; cancelling $pending task(s) still queued"
+            scancel "$jobid" || true
+            return 0
+        fi
+        sleep "$PINCRAM_POLL_SEC"
+    done
+}
+
+# slurm_states TAG : print "<array index>|<state>" for every finished task of the batch
+slurm_states () {
+    local jobid
+    jobid=$(<"$td/slurm-$1.jobid")
+    sacct -j "$jobid" -n -P -X -o JobID,State 2>/dev/null |
+        awk -F '|' -v j="${jobid}_" 'index($1, j) == 1 { sub(/^[0-9]+_/, "", $1) ; print $1 "|" $2 }' || true
+}
+
+# batch_classify CONF TAG LEVEL ATTEMPT : sort the lines of CONF into done, retry and given up.
+# Sets cls_ok cls_retry cls_dropped, cls_retryconf (job file for the next attempt, or empty)
+# and increments bump_mem / bump_time when a task ran out of memory / time.
+batch_classify () {
+    local conf=$1 tag=$2 level=$3 attempt=$4
+    local retryconf=$td/job-l$level-a$((attempt+1)).conf
+    local lineno=0 line idx masktr statusfile rc state reason states='' oom=0 timeout=0 hint=''
+    cls_ok=0 ; cls_retry=0 ; cls_dropped=0 ; cls_retryconf=
+    [[ $arch == slurm ]] && states=$(slurm_states "$tag")
+    [[ $arch == local ]] && hint=" (consider a lower -par)"
+    : >"$retryconf"
+    while read -r line ; do
+        (( ++lineno ))
+        idx=$(field -idx "$line")
+        masktr=$(field -masktr "$line")
+        if [[ -s $masktr ]] ; then (( ++cls_ok )) ; continue ; fi
+        statusfile=$td/status/$tag-n$lineno
+        rc= ; [[ -e $statusfile ]] && rc=$(sed -n 's/^rc=\([0-9]*\).*/\1/p' "$statusfile")
+        state= ; [[ -n $states ]] && state=$(awk -F '|' -v n="$lineno" '$1 == n { print $2 ; exit }' <<<"$states")
+        case "$rc:$state" in
+            *:OUT_OF_MEMORY*) reason="out of memory (Slurm)" ; oom=1 ;;
+            *:TIMEOUT*)       reason="time limit exceeded (Slurm)" ; timeout=1 ;;
+            137:*)            reason="killed by SIGKILL, probably out of memory$hint" ; oom=1 ;;
+            :*)               reason="no exit status recorded${state:+ (Slurm state: $state)}" ;;
+            0:*)              reason="exited 0 without producing a mask" ;;
+            *)                reason="exit status $rc${state:+ (Slurm state: $state)}" ;;
+        esac
+        if (( attempt < PINCRAM_MAX_ATTEMPTS )) ; then
+            msg "Atlas $idx: $reason; will retry"
+            echo "$line" >>"$retryconf"
+            (( ++cls_retry ))
+        else
+            msg "Atlas $idx: $reason; giving up after $attempt attempt(s), see logs/reg-l$level-s$idx.log"
+            (( ++cls_dropped ))
+        fi
+    done <"$conf"
+    (( oom )) && (( ++bump_mem ))
+    (( timeout )) && (( ++bump_time ))
+    if [[ -s $retryconf ]] ; then cls_retryconf=$retryconf ; else rm -f "$retryconf" ; fi
+    return 0
+}

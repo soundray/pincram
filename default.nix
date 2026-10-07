@@ -13,16 +13,13 @@ let
     pkgs.gawk
     pkgs.gnugrep
     pkgs.gnused
-    pkgs.gnutar
-    pkgs.bc
-    pkgs.util-linux
   ];
 in
 
 pkgs.runCommand "pincram" {} ''
   mkdir -p "$out/bin" "$out/lib/pincram"
 
-  cp ${src}/{pincram.sh,reg.sh,atlas-csv-gen.sh,atlas-gen.sh,distrib,spark,functions,neutral.dof.gz} \
+  cp ${src}/{pincram.sh,reg.sh,atlas-csv-gen.sh,atlas-gen.sh,scheduler,functions,neutral.dof.gz} \
     "$out/lib/pincram/"
 
   chmod u+w "$out/lib/pincram/functions"
@@ -33,7 +30,7 @@ export PATH="${binpath}:\$PATH"
 EOF2
 
   for f in \
-    pincram.sh reg.sh atlas-csv-gen.sh atlas-gen.sh distrib spark
+    pincram.sh reg.sh atlas-csv-gen.sh atlas-gen.sh
   do
     chmod +x "$out/lib/pincram/$f"
     patchShebangs "$out/lib/pincram/$f"
