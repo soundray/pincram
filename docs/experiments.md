@@ -74,3 +74,37 @@ Findings:
   imprecision is forgiven partly, and the cheapest acceptable hand-drawn convention would be an
   outline that follows the brain surface to within about 4 mm, filling sulci, drawn the same way
   for every atlas. Masks drawn with uncorrelated 4 mm sloppiness would cost 0.05 Jaccard.
+
+## HD-BET masks as atlas prime masks (2026-10-08)
+
+Question: do pincram's results improve when the atlas prime (total brain volume) masks, made by an
+early pincram version seeded from the Hammers atlas, are replaced by HD-BET 1.1 masks of the same
+IXI atlas images (ICV masks unchanged)? Experiment in `experiments/hdbet-atlas/`. HD-BET masks
+agree with the original prime masks at Jaccard 0.920 ± 0.008 and are 8.3% ± 1.0% larger, i.e.
+they are a consistent, more generous convention. Scored on independent references: total brain
+volume on 10 Hammers subjects against the verified `icmasked` masks, ICV on 10 Klasson subjects
+against manual ICV masks. Paired, 3 levels each.
+
+| Reference | Original atlas | HD-BET prime masks | Paired difference | Better with HD-BET |
+|---|---|---|---|---|
+| Hammers TBV, verified (n=10) | 0.9483 | 0.9361 | −0.012 ± 0.009 | 1 of 10 |
+| Klasson ICV, manual (n=10) | 0.9464 | 0.9374 | −0.009 ± 0.023 | 3 of 10 |
+
+Output volume relative to the reference, Hammers TBV: 1.002 (original) against 1.052 (HD-BET);
+false-positive fraction 0.028 against 0.060, false-negative 0.026 against 0.008. The HD-BET atlas
+shifts pincram's output outward by about 5% in volume, which is the atlas convention passing
+through to the output, as the perturbation experiment predicts for a systematic change. The ICV
+output also grows (volume ratio 1.015 against 1.035), because the final ICV mask is the union of
+the parenchyma vote and the ICV vote. Klasson m1 is an outlier for both variants (ICV volume
+ratio 1.12 and 1.22; the original ICV mask is 1378 ml and the image field of view includes much
+neck).
+
+Decision: keep the original atlas masks. The result does not say HD-BET's masks are worse masks;
+it says their convention differs from the verified total-brain references used here, and pincram
+reproduces whichever convention its atlas carries. A fair test of HD-BET mask *quality* as atlas
+input would first shrink the HD-BET masks to the reference convention (about 1 mm), which is a
+small follow-up experiment. Note: all ten Klasson target names (m1, m7, m13, m19, m25, m31, m37,
+m43, m49, m55) coincide with IXI atlas entry names, and the regression script at the time left out
+any atlas entry whose name matched the target, so each Klasson run used 99 IXI atlases, the
+same-named one removed, identically for both variants. The script now only leaves an entry out
+when told to (`-leave-out`).

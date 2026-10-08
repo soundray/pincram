@@ -12,3 +12,10 @@ the binarized verified `icmasked/` images) and 10 Klasson subjects (`limages/ful
 against the manual ICV masks; parenchyma against `lmasks2/full` is reported as indicative only).
 `submit.sh VARIANT ATLASDIR` submits four Slurm jobs per variant; `aggregate.py` writes
 `results.csv` and `summary.md` with paired differences.
+
+## Results (2026-10-08)
+
+`results/results.csv` and `results/summary.md`; discussion in `docs/experiments.md`. HD-BET prime
+masks lower the total-brain Jaccard against the verified Hammers reference by 0.012 ± 0.009 (worse
+on 9 of 10 targets) and the ICV Jaccard against manual Klasson masks by 0.009 ± 0.023, because the
+HD-BET convention is about 5% more generous and pincram reproduces its atlas convention.
