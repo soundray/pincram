@@ -7,7 +7,10 @@
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
-      pincram = import ./default.nix { inherit pkgs; };
+      pincram = import ./default.nix {
+        inherit pkgs;
+        version = self.shortRev or self.dirtyShortRev or "unknown";
+      };
     in {
       packages.${system} = {
         inherit pincram;

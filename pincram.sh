@@ -95,6 +95,22 @@ pn=$(basename "$ppath")
 
 commandline="$pn $*"
 
+# version : short commit SHA of this pincram. Nix builds record it in VERSION (the store copy has no
+# .git); a git checkout reports it directly, with -dirty if tracked files have uncommitted changes.
+version () {
+    local sha
+    if [[ -s $cdir/VERSION ]] ; then
+        head -n 1 "$cdir/VERSION"
+    elif sha=$(git -C "$cdir" rev-parse --short HEAD 2>/dev/null) ; then
+        [[ -n $(git -C "$cdir" status --porcelain --untracked-files=no 2>/dev/null) ]] && sha+=-dirty
+        echo "$sha"
+    else
+        echo unknown
+    fi
+}
+pincram_version=$(version)
+msg "pincram version $pincram_version"     # first, so that runs ending in fatal report it too
+
 ### Tuned parameters (Heckemann et al. 2015; changing these changes the results)
 
 min_atlases=7            # fewest atlases a level may be fused from, and the smallest selection
@@ -271,7 +287,7 @@ cd "$td" || fatal "Cannot cd to working directory $td"
 mkdir -p status logs tmp
 msg "Working in directory $td"
 msg "$commandline"
-echo "$commandline" >commandline.log
+printf '%s\n# pincram version %s\n' "$commandline" "$pincram_version" >commandline.log
 
 ### Atlas database read and check
 

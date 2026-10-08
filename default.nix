@@ -1,4 +1,4 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import <nixpkgs> {}, version ? "unknown" }:
 
 let
   inherit (pkgs) lib;
@@ -23,6 +23,14 @@ pkgs.runCommand "pincram" {} ''
 
   cp ${src}/{pincram.sh,reg.sh,pincram-image,atlas-csv-gen.sh,atlas-gen.sh,scheduler,functions,neutral.dof.gz} \
     "$out/lib/pincram/"
+
+  # pincram-image needs the Python with numpy, scipy and nibabel; patchShebangs would look python3
+  # up on the build PATH, which does not have it
+  chmod u+w "$out/lib/pincram/pincram-image"
+  sed -i "1s|.*|#!${python}/bin/python3|" "$out/lib/pincram/pincram-image"
+
+  # short commit SHA, reported by pincram.sh at the start of each run
+  echo ${lib.escapeShellArg version} >"$out/lib/pincram/VERSION"
 
   chmod u+w "$out/lib/pincram/functions"
 

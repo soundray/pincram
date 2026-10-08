@@ -9,6 +9,7 @@ a="$T/target.nii.gz -result $T/result -atlas $T/atlas"
 run_pincram $a -pickup /nowhere ;      assert_eq "-pickup rejected" 1 "$rc" ; assert_grep "-pickup message" 'pickup has been removed' "$T/run.log"
 # shellcheck disable=SC2086
 run_pincram $a -bogus ;                assert_eq "unknown option rejected" 1 "$rc"
+assert_grep "version reported on a fatal error" 'pincram version ([0-9a-f]{7,}(-dirty)?|unknown)$' "$T/run.log"
 # shellcheck disable=SC2086
 run_pincram $a -levels 4 ;             assert_eq "-levels 4 rejected" 1 "$rc"
 # shellcheck disable=SC2086
@@ -31,5 +32,13 @@ run_pincram "$T/target.nii.gz" -result "$T/result" -atlas "$T/atlas/etc/entry-m1
 "$pincramdir"/atlas-csv-gen.sh "$T/atlas" "$T/atlases.csv"
 assert_eq "atlas csv has 5 columns" 5 "$(sed -n 2p "$T/atlases.csv" | tr , '\n' | wc -l)"
 run_pincram "$T/target.nii.gz" -result "$T/result" -atlas "$T/atlases.csv" -levels 1 -par 2 ; assert_eq "csv atlas accepted" 0 "$rc"
+assert_grep "version reported" 'pincram version ([0-9a-f]{7,}(-dirty)?|unknown)$' "$T/run.log"
+# a Nix build records the version in VERSION next to pincram.sh
+mkdir "$T/copy"   # the files default.nix installs, no .git
+cp "$pincramdir"/{pincram.sh,reg.sh,pincram-image,atlas-csv-gen.sh,atlas-gen.sh,scheduler,functions,neutral.dof.gz} "$T/copy/"
+echo 1234abc >"$T/copy/VERSION"
+rc=0 ; "$T/copy/pincram.sh" "$T/target.nii.gz" -result "$T/result" -atlas "$T/atlases.csv" -levels 1 -par 2 >"$T/run.log" 2>&1 || rc=$?
+assert_eq "copy with VERSION runs" 0 "$rc"
+assert_grep "version taken from VERSION" 'pincram version 1234abc$' "$T/run.log"
 teardown
 report
