@@ -135,3 +135,66 @@ carries, with a residual of about 0.04 Jaccard that is the method's own imprecis
 convention sits between the verified TBV (4% smaller) and the manual ICV (4.5% larger). HD-BET
 run directly on the Hammers targets agrees with the verified TBV masks less well (0.942) than
 pincram with the original atlas does (0.948). Klasson m1 is the outlier noted above.
+
+## Refining an input mask (2026-10-08)
+
+`pincram.sh -mask` (README, "Refining an existing mask") replaces the coarse level by a
+`prealigned` level: the atlases are transformed with their normalization only, then ranked
+within the input mask's margin. The input mask then steers the affine registrations. With
+`-mask`, the pre-alignment uses the atlas reference brain-mask distance map instead of the
+Otsu head masks. `-refine-band W` keeps the input mask outside a band of W mm around its
+boundary. Experiment: `experiments/mask-refine` (10 Hammers targets, IXI 100-atlas database,
+3 levels). Every Jaccard below compares pincram's `parenchyma.nii.gz` (or the named mask) with
+the verified TBV mask, binarized
+`shared/reference/atlases-hammers-scaled-with-flipped-n60/icmasked/aN.nii.gz`.
+
+| input mask | input vs TBV | output vs TBV | paired diff. to plain | output vs plain output | wall time (32 CPUs) |
+|---|---|---|---|---|---|
+| none (plain pincram) | | 0.9483 | | | 352 s |
+| HD-BET on target (`apps/pincram/temp/hdbet-targets/hammers-aN_mask.nii.gz`) | 0.942 | 0.9483 | +0.0001 ± 0.0030 (5/10 better) | 0.980 | 300 s |
+| TBV eroded 3 mm | 0.723 | 0.9503 | +0.0020 ± 0.0058 (5/10) | 0.979 | 306 s |
+| TBV random boundary, sd 3 mm | 0.841 | 0.9500 | +0.0017 ± 0.0062 (6/10) | 0.980 | 306 s |
+| TBV dilated 3 mm | 0.841 | 0.9365 | -0.0117 ± 0.0310 (2/10) | 0.964 | 296 s |
+
+Recovery without a band is nearly complete. Inputs at 0.72-0.84 Jaccard come out at plain
+pincram's accuracy. The output agrees with the plain output at 0.98, about as well as two
+plain runs with different initializations. Unlike atlas masks (previous section), the input
+mask does not impose its convention: the HD-BET input moves the result by +0.0001. Skipping the
+100 coarse registrations saves 15% of the wall time. The one failure is a22 with the dilated
+input: output 0.856, against 0.954 for plain pincram.
+There, the brain-mask pre-alignment ended in a poor position (reference brain mask mapped onto
+the target: 0.593 vs TBV), and the normalization-only level-0 fusion reached only 0.53. With
+no coarse registrations to correct it, the affine level recovered only partly (0.77). Excluding
+a22, the dilated input is within 0.002 of plain.
+
+Pre-alignment, measured directly (`prealign.sh`, `results/prealign.csv`): the IXI reference
+brain mask mapped onto each target, Jaccard vs TBV, mean over 10 targets. After the distance-map
+step: Otsu head masks 0.590, brain-mask distance maps 0.632 (any input mask). After the intensity
+refinement that pincram applies next: Otsu 0.744, brain masks 0.739-0.758, with no consistent
+winner (5-7 of 10 better). So the brain-mask distance maps are the better first step, but the
+end result is equivalent. On both paths the SSD distance-map registration stops after very few
+iterations (a22: two iterations, energy 1.000 to 0.997), and the outcome depends mainly on whether
+the intensity step escapes from there. Prealigned-level fusions (normalization only) reach
+0.55-0.82 vs TBV, against 0.89-0.92 after coarse registration in plain pincram. The affine level
+usually makes up the difference.
+
+`-refine-band`, applied post hoc to the no-band outputs (in-pipeline `-refine-band 4` matched it
+exactly on all 10 targets):
+
+| input mask | band 2 mm | band 4 mm | band 8 mm | no band |
+|---|---|---|---|---|
+| HD-BET | 0.9500 | 0.9492 | 0.9484 | 0.9483 |
+| TBV eroded 3 mm | 0.8764 | 0.9553 | 0.9505 | 0.9503 |
+| TBV dilated 3 mm | 0.9131 | 0.9522 | 0.9397 | 0.9365 |
+| TBV random 3 mm | 0.9085 | 0.9446 | 0.9500 | 0.9500 |
+
+A band narrower than the input's error locks the error in (2 mm on 3 mm shifts). A band just
+wider than a uniform shift scores above plain pincram, but that is circular: the protected core
+and hull come from the reference mask. With the independent HD-BET input, the band adds
++0.0009 (4 mm) to +0.0017 (2 mm), within the noise noted in the cavity experiment.
+
+Decision: `-mask` is useful as a faster route to plain pincram's accuracy when a reasonable mask
+exists. It is not a way to transfer another tool's convention. `-refine-band` is for inputs
+whose error is known to be smaller than the band. Open: a more robust start for mask mode,
+e.g. a coarse registration of the brain-mask distance maps per atlas, or the coarse level
+masked by the input mask, would remove the pre-alignment failure seen on a22.
