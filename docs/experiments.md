@@ -195,6 +195,6 @@ and hull come from the reference mask. With the independent HD-BET input, the ba
 
 Decision: `-mask` is useful as a faster route to plain pincram's accuracy when a reasonable mask
 exists. It is not a way to transfer another tool's convention. `-refine-band` is for inputs
-whose error is known to be smaller than the band. Open: a more robust start for mask mode,
+whose error is known to be smaller than the band. Open (see `docs/ideas.md`): a more robust start for mask mode,
 e.g. a coarse registration of the brain-mask distance maps per atlas, or the coarse level
 masked by the input mask, would remove the pre-alignment failure seen on a22.
