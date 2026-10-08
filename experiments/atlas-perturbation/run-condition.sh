@@ -26,7 +26,7 @@ for t in $TARGETS ; do
     "$pincramdir"/tests/regression/regress.sh \
         -target "$SRC_ATLAS/base/images/$t.nii.gz" -atlas "$EXP/$cond/atlas" \
         -ref "$SRC_ATLAS/base/brainmasks/$t.nii.gz" -icvref "$SRC_ATLAS/base/icvmasks/$t.nii.gz" \
-        -levels 3 -out "$EXP/$cond/$t" -- -par "$PAR" -threads 1 -workdir "$EXP/$cond/wd" 2>&1 |
+        -leave-out "$t" -levels 3 -out "$EXP/$cond/$t" -- -par "$PAR" -threads 1 -workdir "$EXP/$cond/wd" 2>&1 |
         grep -E '^(=== |regress.sh|pincram.sh: (Level|Attempt|Selected|End|Too few)|[0-9] +(parenchyma|icv))'
     cp "$EXP/$cond/$t/level3/si.csv" "$EXP/$cond/$t/si.csv" 2>/dev/null || true
     rm -rf "$EXP/$cond/$t/level3/pincram."* 2>/dev/null || true

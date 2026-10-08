@@ -112,10 +112,10 @@ Regression tests against real data run `pincram.sh` at each processing level and
 ```sh
 tests/regression/regress.sh -target atlas/base/images/m100.nii.gz -atlas atlas \
     -ref atlas/base/brainmasks/m100.nii.gz -icvref atlas/base/icvmasks/m100.nii.gz \
-    -levels "1 2 3" -baseline tests/regression/baselines/ixi-n100-m100.csv -- -par 32
+    -leave-out m100 -levels "1 2 3" -baseline tests/regression/baselines/ixi-n100-m100.csv -- -par 32
 ```
 
-A target that is itself an atlas entry is left out of the atlas automatically. See `docs/parallelism.md` for benchmarking.
+`-leave-out` removes the named atlas entry, so that an atlas image can serve as the test target. See `docs/parallelism.md` for benchmarking.
 
 ## Changes from the PBS-era version
 

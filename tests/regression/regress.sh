@@ -8,10 +8,10 @@
 #
 # Usage: tests/regression/regress.sh -target T1.nii.gz -atlas DIR|CSV -ref brainmask.nii.gz
 #            [-icvref icvmask.nii.gz] [-levels "1 2 3"] [-atlasn N] [-out DIR]
-#            [-baseline FILE] [-tol 0.01] [-- further pincram.sh options]
+#            [-leave-out NAME] [-baseline FILE] [-tol 0.01] [-- further pincram.sh options]
 #
-# If the target's base name matches an atlas entry, that entry is left out of the atlas
-# (leave-one-out), so an atlas image can serve as the test target. Without -baseline, or if
+# -leave-out NAME removes atlas entry NAME from the atlas, so that an atlas image can serve as
+# the test target (leave-one-out; NAME is the target's base name then). Without -baseline, or if
 # the baseline does not exist yet, the measured values are written to DIR/results.csv and
 # can be adopted as the baseline. Requires MIRTK and NiftySeg (or wrappers) on the PATH,
 # as pincram.sh itself does; the pincram directory is added to the PATH automatically.
@@ -30,7 +30,7 @@ usage () {
 }
 die () { echo "regress.sh: $*" >&2 ; exit 1 ; }
 
-target= ; atlas= ; ref= ; icvref= ; levels="1 2 3" ; atlasn= ; out=regression-out ; baseline= ; tol=0.01
+target= ; atlas= ; ref= ; icvref= ; levels="1 2 3" ; atlasn= ; out=regression-out ; baseline= ; tol=0.01 ; leaveout=
 while [[ $# -gt 0 ]] ; do
     case $1 in
         -target)   target=$(realpath "$2") ; shift ;;
@@ -41,6 +41,7 @@ while [[ $# -gt 0 ]] ; do
         -atlasn)   atlasn=$2 ; shift ;;
         -out)      out=$2 ; shift ;;
         -baseline) baseline=$(realpath -m "$2") ; shift ;;
+        -leave-out) leaveout=$2 ; shift ;;
         -tol)      tol=$2 ; shift ;;
         --)        shift ; break ;;
         -h|-help|--help) usage ; exit 0 ;;
@@ -57,16 +58,16 @@ mkdir -p "$out" ; out=$(realpath "$out")
 results=$out/results.csv
 echo "level,metric,value,elapsed_s" >"$results"
 
-## Atlas csv, leaving the target out if it is an atlas entry
-name=$(basename "$target" .nii.gz)
+## Atlas csv, leaving an entry out if requested
 if [[ -d $atlas ]] ; then
     "$pincramdir"/atlas-csv-gen.sh "$atlas" "$out/atlases-full.csv"
 else
     cp "$atlas" "$out/atlases-full.csv"
 fi
-if grep -q "^$name," "$out/atlases-full.csv" ; then
-    grep -v "^$name," "$out/atlases-full.csv" >"$out/atlases.csv"
-    echo "regress.sh: leaving atlas entry $name out ($(( $(grep -c '' "$out/atlases.csv") - 1 )) atlases remain)"
+if [[ -n $leaveout ]] ; then
+    grep -q "^$leaveout," "$out/atlases-full.csv" || die "-leave-out $leaveout: no such atlas entry"
+    grep -v "^$leaveout," "$out/atlases-full.csv" >"$out/atlases.csv"
+    echo "regress.sh: leaving atlas entry $leaveout out ($(( $(grep -c '' "$out/atlases.csv") - 1 )) atlases remain)"
 else
     cp "$out/atlases-full.csv" "$out/atlases.csv"
 fi
