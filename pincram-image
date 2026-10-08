@@ -9,6 +9,8 @@ Usage: pincram-image <operation> OUT ARGS...
   band OUT IN WIDTH                   1 where 0 < |IN| <= WIDTH, else 0
   binarize OUT IN                     1 where IN > 0, else 0
   crop OUT IMG MASK WIDTH             IMG where 0 < |MASK| <= WIDTH, else 0
+  refine-band OUT LABEL DM WIDTH      LABEL where |DM| <= WIDTH, 1 where DM > WIDTH, 0 where DM < -WIDTH
+                                      (DM: signed distance map, positive inside)
   smooth-otsu OUT IN SIGMA [-fill [RADIUS]]
                                       Gaussian smoothing (SIGMA in voxels), then Otsu threshold: 1 above.
                                       -fill keeps the largest connected component and fills enclosed
@@ -133,6 +135,16 @@ def op_crop(out, args):
     save(out, np.where(band_mask(mask, number(args[2], "width")), data, 0.0), img)
 
 
+def op_refine_band(out, args):
+    if len(args) != 3:
+        die("refine-band needs LABEL DM WIDTH")
+    img, label = load(args[0])
+    _, dm = load(args[1])
+    same_shape(label, dm, args[1])
+    width = number(args[2], "width")
+    save(out, np.where(dm > width, 1.0, np.where(dm < -width, 0.0, label)), img)
+
+
 def otsu_threshold(data, bins=256):
     """Threshold maximizing the between-class variance of a 256-bin histogram over all voxels."""
     hist, edges = np.histogram(data, bins=bins)
@@ -220,6 +232,7 @@ OPERATIONS = {
     "band": op_band,
     "binarize": op_binarize,
     "crop": op_crop,
+    "refine-band": op_refine_band,
     "smooth-otsu": op_smooth_otsu,
     "icv-vote": op_icv_vote,
     "and": op_and,

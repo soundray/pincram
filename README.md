@@ -33,6 +33,16 @@ A reproducible build is available via Nix (`nix build`, see `default.nix`). If M
 
 Add the pincram directory to `PATH`. Review the `run-pincram` script for a sample invocation. Call `pincram.sh` without arguments for usage. Create an atlas directory with `atlas-gen.sh` (one call per subject).
 
+## Refining an existing mask
+
+`-mask input.nii.gz` gives pincram an existing brain mask of the target (any lattice, voxels > 0 are brain; it should follow the convention of the atlas prime masks). The fused mask of each level steers the next level's registrations (margin band) and ranking. The input mask takes over this role at the coarse level:
+
+* Pre-alignment (unless `-tpn` is given): the atlas's reference brain-mask distance map (`base/refspace/brainmask-dm.nii.gz`) is registered to the input mask's distance map, in place of the two Otsu head masks.
+* Level 0 becomes `prealigned`: each atlas is transformed with its normalization alone (job line `-register 0`, no coarse registration), then ranked by similarity within the margin of the input mask. The selection fraction is unchanged.
+* The affine level is initialized from the normalization transforms and masked by the input mask's margin band.
+
+`-refine-band W` also restricts pincram's decision to a band of W mm around the input boundary. The parenchyma mask keeps the input's foreground deeper than W inside its boundary and its background farther than W outside, and pincram's result in between. The ICV mask is the union of the alternative-mask vote with this refined prime mask. `-mask` needs `-levels 2` or `3`. `tests/regression/regress.sh -mask` scores refinement of a deliberately degraded mask; see `experiments/mask-refine`.
+
 ## Execution and parallelism
 
 Each refinement level registers every selected atlas to the target. These registrations are independent and are run as a batch by the `scheduler` module:

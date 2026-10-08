@@ -131,6 +131,12 @@ class ImageOps(unittest.TestCase):
         if ref is not None:
             np.testing.assert_allclose(self.read(self.out("crop.nii.gz")), ref, atol=1e-3, rtol=0)
 
+    def test_refine_band(self):
+        run(TOOL, "refine-band", self.out("rb.nii.gz"), self.paths[1], self.paths[2], 3)
+        dm = self.masks[2].astype(np.float64)
+        label = self.masks[1].astype(np.float64)
+        self.check(self.out("rb.nii.gz"), np.where(dm > 3, 1.0, np.where(dm < -3, 0.0, label)))
+
     def test_icv_vote(self):
         run(TOOL, "icv-vote", self.out("icv.nii.gz"), *self.paths[:3])
         acc = sum(2 * m.astype(np.float64) - 1 for m in self.masks[:3])
@@ -208,7 +214,8 @@ class ImageOps(unittest.TestCase):
         for args in (["band", self.out("x.nii.gz"), self.paths[0]],
                      ["mean", self.out("x.nii.gz")],
                      ["nonsense", self.out("x.nii.gz"), self.paths[0]],
-                     ["crop", self.out("x.nii.gz"), self.img_path, self.paths[0], "wide"]):
+                     ["crop", self.out("x.nii.gz"), self.img_path, self.paths[0], "wide"],
+                     ["refine-band", self.out("x.nii.gz"), self.paths[0], self.paths[1]]):
             r = subprocess.run([TOOL] + args, capture_output=True, text=True)
             self.assertNotEqual(r.returncode, 0, args)
             self.assertIn("pincram-image:", r.stderr)

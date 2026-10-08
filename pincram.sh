@@ -19,6 +19,7 @@ Web site: http://www.soundray.org/pincram
 
 Usage: $pn <input> -result result-dir/ [-atlas atlas-dir/ | -atlas file.csv] [-atlasn N] [-levels {1..3}]
                         [-par N] [-threads T] [-workdir dir/] [-savewd] [-savedm] [-tpn norm.dof.gz] [-ref ref.nii.gz]
+                        [-mask mask.nii.gz [-refine-band mm]]
 
 <input>     : T1-weighted magnetic resonance image in gzipped NIfTI format.
 
@@ -57,6 +58,17 @@ Usage: $pn <input> -result result-dir/ [-atlas atlas-dir/ | -atlas file.csv] [-a
               calculated by registering the target to the atlas's base/refspace/img.nii.gz.
 
 -ref        : Reference label against which to log Jaccard overlap results (assess.log).
+
+-mask       : Existing brain mask of the input (same convention as the atlas prime masks; voxels > 0 are
+              brain, any lattice) to be refined. It replaces the fused mask of the coarse level: the atlases
+              are transformed with their normalization only (no coarse registration), ranked within the
+              margin of the input mask, and the input mask steers the affine level's registrations. Without
+              -tpn, the pre-alignment registers the atlas's reference brain-mask distance map to the input
+              mask's. Needs -levels 2 or 3.
+
+-refine-band: Restrict pincram's decision to a band of this width (mm) around the input mask's boundary:
+              the output keeps the input mask's foreground deeper than this inside and its background
+              farther than this outside. Affects the parenchyma mask (and, through it, the ICV mask).
 
 Environment:
 
@@ -127,7 +139,7 @@ export PINCRAM_ARCH PINCRAM_USE_LIB PINCRAM_IMAGE
 tgt=$(realpath "$1") ; shift
 [[ -e $tgt ]] || fatal "No image found -- $tgt"
 
-tpn= ; result= ; par= ; threads=1 ; ref=none ; atlas=$cdir/atlas ; atlasn=0 ; workdir= ; savewd=0 ; savedm=0 ; levels=3
+tpn= ; inmask= ; refineband= ; result= ; par= ; threads=1 ; ref=none ; atlas=$cdir/atlas ; atlasn=0 ; workdir= ; savewd=0 ; savedm=0 ; levels=3
 while [[ $# -gt 0 ]] ; do
     case "$1" in
         -tpn)     tpn=$(realpath "$2") ; shift ;;
@@ -135,6 +147,8 @@ while [[ $# -gt 0 ]] ; do
         -atlas)   atlas=$(realpath "$2") ; shift ;;
         -workdir) workdir=$(realpath -m "$2") ; shift ;;
         -ref)     ref=$(realpath "$2") ; shift ;;
+        -mask)    inmask=$(realpath "$2") ; shift ;;
+        -refine-band) refineband=$2 ; shift ;;
         -savewd)  savewd=1 ;;
         -savedm)  savedm=1 ;;
         -atlasn)  atlasn=$2 ; shift ;;
@@ -153,6 +167,14 @@ mkdir -p "$result" || fatal "Failed to create directory for result output ($resu
 [[ -e $atlas ]] || fatal "Atlas directory or file does not exist ($atlas)"
 [[ $levels =~ ^[1-3]$ ]] || fatal "-levels must be 1, 2 or 3"
 maxlevel=$((levels-1))
+if [[ -n $inmask ]] ; then
+    [[ -e $inmask ]] || fatal "Input mask does not exist ($inmask)"
+    (( levels >= 2 )) || fatal "-mask replaces the coarse level and needs -levels 2 or 3"
+fi
+if [[ -n $refineband ]] ; then
+    [[ -n $inmask ]] || fatal "-refine-band needs -mask"
+    [[ $refineband =~ ^[0-9]+([.][0-9]+)?$ ]] || fatal "-refine-band must be a non-negative number (mm)"
+fi
 [[ $atlasn =~ ^[0-9]+$ ]] || fatal "-atlasn must be an integer"
 [[ $threads =~ ^[1-9][0-9]*$ ]] || fatal "-threads must be a positive integer"
 [[ $PINCRAM_PROCEED_PCT =~ ^[0-9]+$ && $PINCRAM_PROCEED_PCT -le 100 ]] || fatal "PINCRAM_PROCEED_PCT must be an integer from 0 to 100"
@@ -225,11 +247,16 @@ origin () {
     mirtk info "$1" | grep -v 'File name' | grep -i origin | tr -d ',' | tr -s ' ' | cut -d ' ' -f 4-6
 }
 
-# odistmap IMG OUT : negated distance map of the Otsu-thresholded, smoothed image
+# maskdm MASK OUT : signed distance map (mm) of a binary mask, positive inside like the atlas masks
+maskdm () {
+    mirtk calculate-distance-map "$1" mdm.nii.gz -threads "$drvthreads"
+    mirtk calculate-element-wise mdm.nii.gz -mul -1 -threads "$drvthreads" -o "$2"
+}
+
+# odistmap IMG OUT : distance map of the Otsu-thresholded, smoothed image
 odistmap () {
     "$PINCRAM_IMAGE" smooth-otsu im-otsu.nii.gz "$1" "$otsu_smoothing_vox" "${otsu_fill[@]}"
-    mirtk calculate-distance-map im-otsu.nii.gz odm.nii.gz -threads "$drvthreads"
-    mirtk calculate-element-wise odm.nii.gz -mul -1 -threads "$drvthreads" -o "$2"
+    maskdm im-otsu.nii.gz "$2"
 }
 
 ### Working directory
@@ -282,10 +309,26 @@ if [[ -e $ref ]] ; then
     mirtk edit-image "$ref" ref.nii.gz -origin 0 0 0
     chmod +w ref.nii.gz
 fi
+if [[ -n $inmask ]] ; then
+    # onto the target lattice in world coordinates, then the same origin shift as the target
+    mirtk transform-image "$inmask" input-mask.nii.gz -target "$tgt" -interp NN >>noisy.log 2>&1
+    mirtk edit-image input-mask.nii.gz input-mask.nii.gz -origin 0 0 0 >>noisy.log 2>&1
+    "$PINCRAM_IMAGE" binarize input-mask.nii.gz input-mask.nii.gz
+    maskdm input-mask.nii.gz input-dm.nii.gz
+    assess input-mask.nii.gz | tee -a assess.log
+fi
 if [[ -n $refspace ]] ; then
-    msg "Calculating affine normalization to reference space with distance maps"
-    odistmap "$refspace" refspace-dm.nii.gz
-    odistmap target-full.nii.gz target-dm.nii.gz
+    refspacedm=$atlasbase/base/refspace/brainmask-dm.nii.gz
+    if [[ -n $inmask && -e $refspacedm ]] ; then
+        msg "Calculating affine normalization to reference space with brain mask distance maps"
+        cp "$refspacedm" refspace-dm.nii.gz
+        cp input-dm.nii.gz target-dm.nii.gz
+    else
+        [[ -n $inmask ]] && msg "No $refspacedm in the atlas: pre-aligning with head masks"
+        msg "Calculating affine normalization to reference space with distance maps"
+        odistmap "$refspace" refspace-dm.nii.gz
+        odistmap target-full.nii.gz target-dm.nii.gz
+    fi
     mirtk register refspace-dm.nii.gz target-dm.nii.gz \
           -model Affine \
           -sim SSD \
@@ -304,12 +347,17 @@ fi
 ### Iterate over levels
 #
 # Job lines: one per atlas and level, in job-<level>-a1.conf, consumed by reg.sh:
-#   -idx N -lev L -tgt IMG -src IMG -msk IMG -spn DOF -tpn DOF -tmargin IMG
+#   -idx N -lev L [-register 0] -tgt IMG -src IMG -msk IMG -spn DOF -tpn DOF -tmargin IMG
 #   -srctr OUT -masktr OUT -dofin DOF -dofout OUT [-tdm IMG] [-alt IMG -alttr OUT]
 # -tdm (fused mask of the previous level) exists from level 1 on; the alternative masks
 # are only propagated at the final level, where they are needed.
+#
+# With -mask, level 0 is "prealigned": the job lines carry -register 0, so the atlases are only
+# transformed with their normalization, and the input mask takes the place of the fused mask
+# (ranking margin, -tdm and registration margin of the affine level).
 
 levelname=(coarse affine nonrigid)
+[[ -n $inmask ]] && levelname[0]=prealigned
 tgt=$PWD/target-full.nii.gz
 tdm=
 tmg=$tgt
@@ -327,7 +375,9 @@ for level in $(seq 0 "$maxlevel") ; do
     : >"$conf"
     while read -r srcindex ; do
         IFS=, read -r _ src spn msk alt < <(sed -n "$((srcindex+1))p" "$atlas")
-        line="-idx $srcindex -lev $level -tgt $tgt -src $atlasbase/$src -msk $atlasbase/$msk"
+        line="-idx $srcindex -lev $level"
+        [[ $level -eq 0 && -n $inmask ]] && line+=" -register 0"
+        line+=" -tgt $tgt -src $atlasbase/$src -msk $atlasbase/$msk"
         line+=" -spn $atlasbase/$spn -tpn $tpn -tmargin $tmg"
         line+=" -srctr $PWD/srctr-$thislevel-s$srcindex.nii.gz -masktr $PWD/masktr-$thislevel-s$srcindex.nii.gz"
         line+=" -dofin $PWD/reg-s$srcindex-$prevlevel.dof.gz -dofout $PWD/reg-s$srcindex-$thislevel.dof.gz"
@@ -348,13 +398,14 @@ for level in $(seq 0 "$maxlevel") ; do
     msg "Building reference atlas for selection at level $thislevel"
     "$PINCRAM_IMAGE" mean tmask-"$thislevel"-sum.nii.gz masktr-"$thislevel"-s*.nii.gz
     tdm=$PWD/tmask-$thislevel-sum.nii.gz
+    (( level == 0 )) && [[ -n $inmask ]] && tdm=$PWD/input-dm.nii.gz      # the input mask replaces the coarse fusion
 
     ## Intermediate target mask
     "$PINCRAM_IMAGE" binarize tmask-"$thislevel".nii.gz tmask-"$thislevel"-sum.nii.gz
     assess tmask-"$thislevel".nii.gz | tee -a assess.log
 
     ## Target margin mask for similarity ranking
-    "$PINCRAM_IMAGE" band emargin-"$thislevel"-dil.nii.gz tmask-"$thislevel"-sum.nii.gz "$(rank_margin_mm "$level")"
+    "$PINCRAM_IMAGE" band emargin-"$thislevel"-dil.nii.gz "$tdm" "$(rank_margin_mm "$level")"
 
     ## Selection: rank atlases by NMI between their transformed image and the target within the margin
     msg "Selecting"
@@ -392,7 +443,9 @@ for level in $(seq 0 "$maxlevel") ; do
 
     ## Margin mask for the next level
     (( level == maxlevel )) && continue
-    "$PINCRAM_IMAGE" band dmargin-"$thislevel".nii.gz distmap-"$thislevel".nii.gz "$(reg_margin_mm "$level")"
+    margindm=distmap-$thislevel.nii.gz
+    (( level == 0 )) && [[ -n $inmask ]] && margindm=input-dm.nii.gz
+    "$PINCRAM_IMAGE" band dmargin-"$thislevel".nii.gz "$margindm" "$(reg_margin_mm "$level")"
     tmg=$PWD/dmargin-$thislevel.nii.gz
 done
 
@@ -412,9 +465,17 @@ rm -f alttr-s*.nii.gz                                # alttr: no longer needed
 [[ $savewd -eq 1 ]] || rm -f reg-s*-"$thislevel".dof.gz
 
 ### Combine mask types to create wide (ICV) and narrow (parenchymal) masks
+# With -refine-band, both the prime label and the parenchyma mask keep the input mask outside
+# the band around its boundary; the ICV mask, their union with the alternative vote, contains both.
 
-"$PINCRAM_IMAGE" and andmask.nii.gz altmsk-bin.nii.gz tmask-"$thislevel"-sel.nii.gz
-"$PINCRAM_IMAGE" or ormask.nii.gz altmsk-bin.nii.gz tmask-"$thislevel"-sel.nii.gz
+prime=tmask-$thislevel-sel.nii.gz
+"$PINCRAM_IMAGE" and andmask.nii.gz altmsk-bin.nii.gz "$prime"
+if [[ -n $refineband ]] ; then
+    "$PINCRAM_IMAGE" refine-band tmask-"$thislevel"-refined.nii.gz "$prime" input-dm.nii.gz "$refineband"
+    "$PINCRAM_IMAGE" refine-band andmask.nii.gz andmask.nii.gz input-dm.nii.gz "$refineband"
+    prime=tmask-$thislevel-refined.nii.gz
+fi
+"$PINCRAM_IMAGE" or ormask.nii.gz altmsk-bin.nii.gz "$prime"
 mirtk convert-image andmask.nii.gz parenchyma1.nii.gz -uchar >>noisy.log 2>&1
 mirtk convert-image ormask.nii.gz icv1.nii.gz -uchar >>noisy.log 2>&1
 

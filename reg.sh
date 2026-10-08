@@ -61,13 +61,14 @@ params=$(sed -n "${line}p" "$conf")
 [[ -n $params ]] || fatal "No line $line in $conf"
 
 ### Job line
-idx= ; lev= ; tgt= ; tdm= ; src= ; srctr= ; msk= ; masktr= ; alt= ; alttr= ; dofin= ; dofout= ; spn= ; tpn= ; tmargin=
+idx= ; lev= ; register=1 ; tgt= ; tdm= ; src= ; srctr= ; msk= ; masktr= ; alt= ; alttr= ; dofin= ; dofout= ; spn= ; tpn= ; tmargin=
 # shellcheck disable=SC2086  # the job line is deliberately word-split
 set -- $params
 while [[ $# -gt 0 ]] ; do
     case "$1" in
         -idx)     idx=$2 ;;
         -lev)     lev=$2 ;;
+        -register) register=$2 ;;
         -tgt)     tgt=$2 ;;
         -tdm)     tdm=$2 ;;
         -src)     src=$2 ;;
@@ -88,6 +89,8 @@ done
 for v in idx lev tgt src srctr msk masktr dofout spn tpn ; do
     [[ -n ${!v} ]] || fatal "Job line lacks -$v"
 done
+[[ $register == [01] ]] || fatal "-register must be 0 or 1"
+(( register || lev == 0 )) || fatal "-register 0 is only valid at level 0"
 
 ### Private working directory, log and status
 
@@ -131,6 +134,8 @@ if (( lev >= 2 )) ; then
 fi
 
 ### Registration and mask propagation
+# -register 0 (level 0 only) skips the registration: the atlas is transformed with the composed
+# normalizations alone (used when pincram.sh is given an input mask instead of a coarse level).
 # Each branch leaves masktr.nii.gz, srctr.nii.gz, alttr.nii.gz (if -alttr given) and the
 # transformation named in $dofresult in the current directory.
 
@@ -140,7 +145,11 @@ case "$PINCRAM_USE_LIB" in
         case $lev in
             0)
                 mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
-                mirtk register "$tgt" "$src" "${mirtk_coarse[@]}" -dofin dof-pre.dof -dofout dof-out.dof -threads "$threads"
+                if (( register )) ; then
+                    mirtk register "$tgt" "$src" "${mirtk_coarse[@]}" -dofin dof-pre.dof -dofout dof-out.dof -threads "$threads"
+                else
+                    mv dof-pre.dof dof-out.dof
+                fi
                 ;;
             1)
                 mirtk register "$tgt" "$src" "${mirtk_affine[@]}" -dofin "$dofin" -mask "$tmargin" -dofout dof-out.dof -threads "$threads"
@@ -160,12 +169,16 @@ case "$PINCRAM_USE_LIB" in
             0)
                 mirtk compose-dofs "$spn" "$tpn" dof-pre.dof -scale 1 -1
                 convert-dof dof-pre.dof dof-pre.mat -output-format flirt -target "$tgt" -source "$src"
-                greedy -d 3 -a -dof 6 -threads "$threads" \
-                       -ia dof-pre.mat \
-                       -i "$tgt" "$src" \
-                       -o transform.mat \
-                       -m NCC 5x5x5 \
-                       -n 100x0x0
+                if (( register )) ; then
+                    greedy -d 3 -a -dof 6 -threads "$threads" \
+                           -ia dof-pre.mat \
+                           -i "$tgt" "$src" \
+                           -o transform.mat \
+                           -m NCC 5x5x5 \
+                           -n 100x0x0
+                else
+                    mv dof-pre.mat transform.mat
+                fi
                 dofresult=transform.mat
                 ;;
             1)
