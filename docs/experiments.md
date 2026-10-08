@@ -108,3 +108,30 @@ m43, m49, m55) coincide with IXI atlas entry names, and the regression script at
 any atlas entry whose name matched the target, so each Klasson run used 99 IXI atlases, the
 same-named one removed, identically for both variants. The script now only leaves an entry out
 when told to (`-leave-out`).
+
+### Addendum: against the target's own HD-BET mask (2026-10-08, rerun)
+
+The 40 runs were repeated with outputs kept, and HD-BET was run on the 20 targets themselves
+(`apps/pincram/temp/hdbet-targets/<set>-<target>_mask.nii.gz`). Rerun scores against the
+independent references reproduced the first round (Hammers TBV 0.9483 / 0.9361; Klasson ICV
+0.9467 / 0.9393). Pairwise Jaccard, mean ± sd over 10 targets; full table in
+`experiments/hdbet-atlas/results/pairwise.csv`:
+
+| Compared masks | Hammers (a1, a4, ..., a28) | Klasson (m1, m7, ..., m55) |
+|---|---|---|
+| pincram parenchyma, original atlas vs verified TBV `icmasked` | 0.948 ± 0.009 | |
+| pincram parenchyma, HD-BET atlas vs verified TBV | 0.936 ± 0.008 | |
+| HD-BET on the target vs verified TBV | 0.942 ± 0.004 | |
+| pincram parenchyma, HD-BET atlas vs HD-BET on the target | 0.963 ± 0.006 | 0.946 ± 0.036 (0.957 without m1) |
+| pincram parenchyma, original atlas vs HD-BET on the target | 0.948 ± 0.007 | 0.916 ± 0.006 |
+| pincram parenchyma, original vs HD-BET atlas | 0.946 ± 0.006 | 0.929 ± 0.017 |
+| HD-BET on the target vs manual ICV `lmasks/icvmasks-manual` | | 0.926 ± 0.012 |
+| HD-BET volume / reference volume | 1.040 ± 0.010 (TBV) | 0.955 ± 0.014 (ICV) |
+
+Reading: with the convention held fixed, pincram propagating HD-BET atlas masks agrees with
+HD-BET's own output on the target at 0.963, better than either agrees with the verified TBV
+masks (0.936 and 0.942). So the propagation machinery reproduces whatever convention the atlas
+carries, with a residual of about 0.04 Jaccard that is the method's own imprecision. HD-BET's
+convention sits between the verified TBV (4% smaller) and the manual ICV (4.5% larger). HD-BET
+run directly on the Hammers targets agrees with the verified TBV masks less well (0.942) than
+pincram with the original atlas does (0.948). Klasson m1 is the outlier noted above.

@@ -19,3 +19,8 @@ against the manual ICV masks; parenchyma against `lmasks2/full` is reported as i
 masks lower the total-brain Jaccard against the verified Hammers reference by 0.012 ± 0.009 (worse
 on 9 of 10 targets) and the ICV Jaccard against manual Klasson masks by 0.009 ± 0.023, because the
 HD-BET convention is about 5% more generous and pincram reproduces its atlas convention.
+
+Addendum: `results/pairwise.csv` holds, per target, the pairwise Jaccard among pincram's output
+with either atlas, HD-BET run on the target, and the independent reference; pincram with the
+HD-BET atlas agrees with HD-BET on the target at 0.963 (Hammers), better than either agrees with
+the verified TBV masks.
